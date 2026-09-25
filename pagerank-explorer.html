@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="MATH 499 Week 3: build the link matrix of a small web, set the damping factor, and watch power iteration converge to the PageRank vector at the rate set by the second eigenvalue.">
+<title>PageRank Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=STIX+Two+Text:ital,wght@0,500;0,600;1,500&display=swap">
+<style>
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#18202C; --muted:#56606F; --line:#D5DBE4;
+  --grid:#E7EBF1; --axis:#98A2B2;
+  --x:#1D5CC0; --x-soft:#DCE7F8; --ax:#B85607; --e1:#0A7A69;
+  --chip:#E9EDF3; --good-bg:#DFF2EC; --good-ink:#08604F; --warn-bg:#F7ECDD; --warn-ink:#83460A;
+  --serif:"STIX Two Text",Cambria,"Times New Roman",serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#10141A; --surface:#171D26; --ink:#E3E8EF; --muted:#9BA5B5; --line:#2A3341;
+    --grid:#1F2732; --axis:#4C5768;
+    --x:#7EA9FF; --x-soft:#1F3252; --ax:#F2A24F; --e1:#45C9B0;
+    --chip:#232B37; --good-bg:#12342D; --good-ink:#86E3CE; --warn-bg:#3A2A17; --warn-ink:#F4C58F;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10141A; --surface:#171D26; --ink:#E3E8EF; --muted:#9BA5B5; --line:#2A3341;
+  --grid:#1F2732; --axis:#4C5768;
+  --x:#7EA9FF; --x-soft:#1F3252; --ax:#F2A24F; --e1:#45C9B0;
+  --chip:#232B37; --good-bg:#12342D; --good-ink:#86E3CE; --warn-bg:#3A2A17; --warn-ink:#F4C58F;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+header{display:grid;gap:6px;margin-bottom:22px;max-width:72ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(30px,4.2vw,42px);line-height:1.1;margin:0;text-wrap:balance}
+.lede{margin:4px 0 0}
+.m{font-family:var(--serif);font-style:italic;font-size:1.08em}
+.mu{font-family:var(--serif);font-size:1.08em}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.92em}
+:focus-visible{outline:3px solid var(--x);outline-offset:2px}
+
+.grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:28px;align-items:start}
+.grid + .grid{margin-top:28px}
+@media (max-width:880px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px;min-width:0}
+.label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0}
+.note{margin:0;color:var(--muted);font-size:14px}
+
+svg{display:block;width:100%;height:auto;max-width:100%}
+#graph .edge{fill:none;stroke:var(--muted);stroke-width:1.8}
+#graph .head{fill:var(--muted)}
+#graph .node{fill:var(--x-soft);stroke:var(--x);stroke-width:2.5}
+#graph .nl{font:600 20px var(--serif);fill:var(--ink);text-anchor:middle;dominant-baseline:central}
+#graph .nv{font:500 12px var(--mono);fill:var(--muted);text-anchor:middle}
+
+.bars{display:grid;gap:8px}
+.bar{display:grid;grid-template-columns:1.6em minmax(0,1fr) 4.6em;gap:10px;align-items:center}
+.bar .p{font-family:var(--serif);font-weight:600;font-size:18px}
+.track{position:relative;height:18px;background:var(--grid);border-radius:3px}
+.fill{position:absolute;left:0;top:0;bottom:0;background:var(--x);border-radius:0 4px 4px 0;transition:width .25s ease}
+.tick{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;background:var(--ink);border-radius:1px}
+.bar .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;text-align:right}
+.barlegend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--muted)}
+.barlegend span{display:inline-flex;align-items:center;gap:6px}
+.sw{display:inline-block;width:16px;height:10px;border-radius:2px;background:var(--x)}
+.sw.t{width:3px;height:14px;background:var(--ink)}
+.sw.l{width:18px;height:0;border-top:2.5px solid var(--x);border-radius:0;background:none}
+.sw.d{width:18px;height:0;border-top:2.5px dashed var(--ax);border-radius:0;background:none}
+
+.status{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;padding:10px 12px;border-radius:8px;background:var(--bg)}
+.status p{margin:0;flex:1 1 240px}
+.chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.chip.good{background:var(--good-bg);color:var(--good-ink)}
+.chip.warn{background:var(--warn-bg);color:var(--warn-ink)}
+
+.panel{display:grid}
+.sec{padding:16px 0;border-top:1px solid var(--line);display:grid;gap:10px}
+.sec:first-child{border-top:0;padding-top:0}
+select{font:15px var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%}
+.links{border-collapse:collapse;font-size:14px}
+.links th,.links td{padding:4px 8px;text-align:center}
+.links th{font-weight:600;color:var(--muted);font-size:13px}
+.links th.pg{font-family:var(--serif);font-size:17px;color:var(--ink)}
+.links td input{width:18px;height:18px;accent-color:var(--x);cursor:pointer}
+.links td.self{color:var(--muted)}
+.linkwrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.linkwrap .note{flex:1 1 180px}
+.slider{display:grid;gap:4px}
+.slider .row{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+input[type=range]{width:100%;accent-color:var(--x)}
+.big{font-family:var(--serif);font-size:22px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 14px var(--sans);padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--x);border-color:var(--x);color:var(--surface)}
+.btn:disabled{opacity:.45;cursor:default}
+.inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.inline select{width:auto}
+dl.keys{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;margin:0;font-size:14px;align-items:baseline}
+dl.keys dt{color:var(--muted)}
+dl.keys dd{margin:0}
+
+.plotbox{position:relative}
+#plot text{font:11px var(--mono);fill:var(--muted)}
+#plot .gl{stroke:var(--grid);stroke-width:1}
+#plot .ax{stroke:var(--axis);stroke-width:1}
+#plot .err{fill:none;stroke:var(--x);stroke-width:2}
+#plot .dot{fill:var(--x);stroke:var(--surface);stroke-width:2}
+#plot .pred{fill:none;stroke:var(--ax);stroke-width:2;stroke-dasharray:6 5}
+#plot .cross{stroke:var(--muted);stroke-width:1}
+#plot .lbl{font:600 12px var(--sans)}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);white-space:nowrap}
+.tip b{font-family:var(--mono);font-weight:500}
+.tablebox{overflow:auto;max-height:330px;border:1px solid var(--line);border-radius:6px}
+table.it{border-collapse:collapse;width:100%;font-size:13px}
+table.it th,table.it td{padding:5px 10px;text-align:right;white-space:nowrap}
+table.it th{position:sticky;top:0;background:var(--surface);font-weight:600;color:var(--muted);border-bottom:1px solid var(--line);font-family:var(--serif);font-size:15px}
+table.it td{font-family:var(--mono);font-variant-numeric:tabular-nums}
+table.it tr.cur td{background:var(--bg);font-weight:500}
+table.it tr.exact td{border-top:1px solid var(--line);color:var(--muted)}
+table.it th:first-child,table.it td:first-child{text-align:left}
+details summary{cursor:pointer;font-weight:600;font-size:14px}
+.mats{display:flex;flex-wrap:wrap;gap:24px;margin-top:12px}
+.mat{display:grid;gap:6px}
+.mat table{border-collapse:collapse;font-family:var(--mono);font-size:13px}
+.mat td,.mat th{padding:3px 9px;text-align:right}
+.mat th{font-family:var(--serif);font-size:15px;color:var(--muted);font-weight:600}
+.mat tbody td{border-left:0}
+.mat .brk{border-left:2px solid var(--ink);border-right:2px solid var(--ink)}
+ol.try{margin:0;padding-left:1.3em;display:grid;gap:6px;font-size:14px}
+.foot{margin-top:28px;color:var(--muted);font-size:13px;max-width:75ch}
+@media (prefers-reduced-motion:reduce){.fill{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">MATH 499 · Week 3 · Markov chains and PageRank</div>
+    <h1>PageRank Explorer</h1>
+    <p class="lede">A random surfer follows a link with probability <span class="m">α</span> and jumps to a random page otherwise. The PageRank vector <span class="m">r</span> is the steady state: the eigenvector of the Google matrix <span class="m">G</span> for <span class="m">λ</span> = 1. Power iteration finds it by multiplying by <span class="m">G</span> again and again. How fast it gets there depends on the second eigenvalue, |<span class="m">λ</span><sub>2</sub>(<span class="m">G</span>)| = <span class="m">α</span>·|<span class="m">λ</span><sub>2</sub>(<span class="m">M</span>)|.</p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2 class="label">The web, sized by current rank</h2>
+      <svg id="graph" viewBox="0 0 420 330" role="img" aria-labelledby="graphDesc"><title id="graphDesc">Link graph</title></svg>
+      <div class="bars" id="bars" role="list" aria-label="Rank of each page"></div>
+      <div class="barlegend"><span><i class="sw"></i><span id="lgCur">x₀, the current iterate</span></span><span><i class="sw t"></i>exact PageRank r</span></div>
+      <div class="status"><span id="chip" class="chip"></span><p id="statusText"></p></div>
+      <div class="sr" aria-live="polite" id="live"></div>
+    </div>
+
+    <div class="panel">
+      <section class="sec" aria-labelledby="lblWeb">
+        <h2 class="label" id="lblWeb">The web</h2>
+        <label class="sr" for="preset">Example web</label>
+        <select id="preset"></select>
+        <p class="note" id="presetNote"></p>
+        <div class="linkwrap">
+          <table class="links" aria-label="Links: each row is a page, each checkbox a link to another page">
+            <thead><tr><th scope="col">from ↓ to →</th><th class="pg" scope="col">A</th><th class="pg" scope="col">B</th><th class="pg" scope="col">C</th><th class="pg" scope="col">D</th></tr></thead>
+            <tbody id="linkBody"></tbody>
+          </table>
+          <p class="note">Tick a box to add a link. Column <span class="m">j</span> of <span class="m">M</span> gives each page that <span class="m">j</span> links to the share 1/<span class="m">d<sub>j</sub></span>, where <span class="m">d<sub>j</sub></span> is the number of links out of <span class="m">j</span>. A page with no links out is treated as linking to every page.</p>
+        </div>
+      </section>
+
+      <section class="sec" aria-labelledby="lblAlpha">
+        <div class="slider">
+          <div class="row"><label class="label" id="lblAlpha" for="alpha">Damping factor <span class="m" style="text-transform:none;letter-spacing:0">α</span></label><span class="big num" id="alphaVal">0.85</span></div>
+          <input type="range" id="alpha" min="0" max="1" step="0.01" value="0.85">
+          <p class="note"><span class="mu">G = αM + (1 − α)/n · 𝟏𝟏ᵀ</span>. Google's value is 0.85. At α = 1 there is no teleporting at all.</p>
+        </div>
+      </section>
+
+      <section class="sec" aria-labelledby="lblIter">
+        <h2 class="label" id="lblIter">Power iteration</h2>
+        <div class="inline"><label for="start">Start from</label>
+          <select id="start"><option value="u">uniform: ¼ on each page</option><option value="a">all weight on page A</option></select>
+        </div>
+        <div class="inline"><span class="big" id="kread">k = 0</span></div>
+        <div class="btns">
+          <button class="btn primary" id="step">Multiply by G</button>
+          <button class="btn" id="back">Step back</button>
+          <button class="btn" id="play">Play to k = 30</button>
+          <button class="btn" id="reset">Back to k = 0</button>
+        </div>
+      </section>
+
+      <section class="sec" aria-labelledby="lblKeys">
+        <h2 class="label" id="lblKeys">What sets the speed</h2>
+        <dl class="keys" id="keys"></dl>
+      </section>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2 class="label">Error ‖<span class="m" style="text-transform:none">x<sub>k</sub></span> − <span class="m" style="text-transform:none">r</span>‖<sub>1</sub> on a log scale</h2>
+      <div class="plotbox"><svg id="plot" viewBox="0 0 520 300" role="img" aria-labelledby="plotDesc"><title id="plotDesc">Error versus k</title></svg><div class="tip" id="tip" hidden></div></div>
+      <div class="barlegend"><span><i class="sw l"></i>actual error</span><span><i class="sw d"></i>predicted slope: C·|λ₂(G)|ᵏ</span></div>
+      <p class="note">On a log scale, <span class="m">C</span>·|<span class="m">λ</span><sub>2</sub>|<sup><span class="m">k</span></sup> is a straight line. Its slope is log |<span class="m">λ</span><sub>2</sub>|, and the actual error ends up running parallel to it.</p>
+    </div>
+    <div class="card">
+      <h2 class="label">Iterates (compare notes, Table 2)</h2>
+      <div class="tablebox"><table class="it" aria-label="Power iteration iterates and their error"><thead><tr><th scope="col">k</th><th scope="col">A</th><th scope="col">B</th><th scope="col">C</th><th scope="col">D</th><th scope="col">error</th></tr></thead><tbody id="itBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <details id="matDetails">
+        <summary>Show the matrices M and G</summary>
+        <div class="mats" id="mats"></div>
+      </details>
+    </div>
+    <div class="card">
+      <h2 class="label">What to try</h2>
+      <ol class="try">
+        <li><strong>Notes web:</strong> step to <span class="m">k</span> = 5, 10 and 20 and compare with Table 2. Why is page D stuck at 0.0375 from the first step on?</li>
+        <li>Move <span class="m">α</span> to 0.5, then to 0.99. How do the ranking and the number of iterations change? Why does D shrink toward 0?</li>
+        <li><strong>Give D an incoming link:</strong> which pages lose rank? Did |<span class="m">λ</span><sub>2</sub>(<span class="m">M</span>)| change?</li>
+        <li><strong>Two separate groups:</strong> why is |<span class="m">λ</span><sub>2</sub>(<span class="m">M</span>)| exactly 1? Set <span class="m">α</span> = 1. Why is there no single ranking any more?</li>
+        <li><strong>One-way cycle:</strong> at <span class="m">α</span> = 1, start with all weight on A and press Play. Why does the iteration never settle, even though <span class="m">r</span> exists?</li>
+      </ol>
+    </div>
+  </div>
+
+  <p class="foot">Keyboard: every control is reachable with Tab. Checkboxes add or remove links, the slider sets α, and the buttons step the iteration. The status line and the iterate table describe what the pictures show. Companion to Week 3 notes §7 and the optional computer problem.</p>
+</div>
+
+<script>
+(function(){
+const P = ['A','B','C','D'], n = 4;
+const PRESETS = [
+  {id:'notes', name:'Notes web (§7)', L:{A:'BC',B:'C',C:'A',D:'AC'},
+   note:'A→B, C; B→C; C→A; D→A, C. Nobody links to D.'},
+  {id:'intoD', name:'Give D an incoming link', L:{A:'BC',B:'C',C:'AD',D:'AC'},
+   note:'The notes web plus C→D.'},
+  {id:'dangling', name:'D links nowhere', L:{A:'BC',B:'C',C:'A',D:''},
+   note:'D is a dangling page: no links in or out. Its column of M becomes ¼ everywhere.'},
+  {id:'groups', name:'Two separate groups', L:{A:'B',B:'A',C:'D',D:'C'},
+   note:'A↔B and C↔D, with no links between the groups.'},
+  {id:'cycle', name:'One-way cycle', L:{A:'B',B:'C',C:'D',D:'A'},
+   note:'A→B→C→D→A. Every page has exactly one link in and one out.'},
+];
+const $ = id => document.getElementById(id);
+const MINUS='−', SUBS='₀₁₂₃₄₅₆₇₈₉', SUPS='⁰¹²³⁴⁵⁶⁷⁸⁹';
+const sub = k => String(k).split('').map(d=>SUBS[+d]).join('');
+const sup = k => String(k).replace(/-/g,'⁻').replace(/\d/g,d=>SUPS[+d]);
+function fmt(v,dp=4){
+  if(!isFinite(v)) return '—';
+  const a=Math.abs(v);
+  if(a<1e-15) return '0';
+  if(a<1e-4){ const [m,e]=v.toExponential(1).split('e'); return (m.replace(/\.0$/,'')+'×10'+sup(parseInt(e,10))).replace('-',MINUS); }
+  let s=v.toFixed(dp); if(s.includes('.')) s=s.replace(/\.?0+$/,''); return s.replace('-',MINUS);
+}
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- state ---------- */
+const S = {adj:null, alpha:0.85, k:0, start:'u', preset:'notes'};
+let D = null; // derived
+let playTimer = null;
+const KPLOT = 30, KMAX = 60, KRUN = 3000;
+
+/* ---------- linear algebra ---------- */
+function buildM(adj){
+  const M=[...Array(n)].map(()=>Array(n).fill(0)); const dangling=[];
+  for(let j=0;j<n;j++){
+    const out=[]; for(let i=0;i<n;i++) if(adj[j][i]) out.push(i);
+    if(!out.length){ dangling.push(j); for(let i=0;i<n;i++) M[i][j]=1/n; }
+    else out.forEach(i=>M[i][j]=1/out.length);
+  }
+  return {M,dangling};
+}
+const matvec=(A,x)=>A.map(row=>row.reduce((s,a,j)=>s+a*x[j],0));
+const matmul=(A,B)=>A.map((row,i)=>B[0].map((_,j)=>row.reduce((s,a,k)=>s+a*B[k][j],0)));
+function rank(A,tol=1e-9){
+  const B=A.map(r=>r.slice()); let rk=0; const rows=B.length, cols=B[0].length;
+  for(let c=0;c<cols&&rk<rows;c++){
+    let p=rk; for(let r=rk+1;r<rows;r++) if(Math.abs(B[r][c])>Math.abs(B[p][c])) p=r;
+    if(Math.abs(B[p][c])<tol) continue;
+    [B[rk],B[p]]=[B[p],B[rk]];
+    for(let r=0;r<rows;r++) if(r!==rk){ const f=B[r][c]/B[rk][c]; for(let k=c;k<cols;k++) B[r][k]-=f*B[rk][k]; }
+    rk++;
+  }
+  return rk;
+}
+function solve(A,b){
+  const m=A.length, B=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<m;c++){
+    let p=c; for(let r=c+1;r<m;r++) if(Math.abs(B[r][c])>Math.abs(B[p][c])) p=r;
+    if(Math.abs(B[p][c])<1e-12) return null;
+    [B[c],B[p]]=[B[p],B[c]];
+    for(let r=0;r<m;r++) if(r!==c){ const f=B[r][c]/B[c][c]; for(let k=c;k<=m;k++) B[r][k]-=f*B[c][k]; }
+  }
+  return B.map((r,i)=>r[m]/r[i]);
+}
+/* eigenvalues via characteristic polynomial (Faddeev–LeVerrier) + Durand–Kerner */
+function charPoly(A){
+  const c=Array(n+1).fill(0); c[n]=1; let Mk=[...Array(n)].map(()=>Array(n).fill(0));
+  for(let k=1;k<=n;k++){
+    const AM=matmul(A,Mk); Mk=AM.map((row,i)=>row.map((v,j)=>v+(i===j?c[n-k+1]:0)));
+    const AMk=matmul(A,Mk); let tr=0; for(let i=0;i<n;i++) tr+=AMk[i][i];
+    c[n-k]=-tr/k;
+  }
+  return c; // c[0] + c[1]λ + ... + λ^n
+}
+function roots(c){
+  const cm=(a,b)=>[a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]];
+  const cd=(a,b)=>{const d=b[0]*b[0]+b[1]*b[1]||1e-300; return [(a[0]*b[0]+a[1]*b[1])/d,(a[1]*b[0]-a[0]*b[1])/d];};
+  const ev=z=>{ let r=[1,0]; for(let i=n-1;i>=0;i--){ r=cm(r,z); r=[r[0]+c[i],r[1]]; } return r; };
+  let z=[...Array(n)].map((_,i)=>{ let p=[1,0]; for(let k=0;k<=i;k++) p=cm(p,[0.4,0.9]); return p; });
+  for(let it=0;it<800;it++){
+    z=z.map((zi,i)=>{ let den=[1,0]; z.forEach((zj,j)=>{ if(j!==i) den=cm(den,[zi[0]-zj[0],zi[1]-zj[1]]); }); const q=cd(ev(zi),den); return [zi[0]-q[0],zi[1]-q[1]]; });
+  }
+  return z;
+}
+
+function derive(){
+  const {M,dangling}=buildM(S.adj);
+  const a=S.alpha;
+  const G=M.map(row=>row.map(v=>a*v+(1-a)/n));
+  const MI=M.map((row,i)=>row.map((v,j)=>v-(i===j?1:0)));
+  const nullity = n - rank(MI);
+  const ev = roots(charPoly(M)).map(z=>Math.hypot(z[0],z[1])).sort((x,y)=>y-x);
+  let l2M = nullity>=2 ? 1 : Math.min(1, ev[1]);
+  if(Math.abs(l2M-1)<1e-6) l2M=1;
+  const l2G = a*l2M;
+  // exact r
+  let r=null;
+  const GI=G.map((row,i)=>row.map((v,j)=>v-(i===j?1:0)));
+  const unique = a<1 || nullity===1;
+  if(unique){ const A=GI.map(r=>r.slice()); A[n-1]=Array(n).fill(1); const b=Array(n).fill(0); b[n-1]=1; r=solve(A,b); }
+  // iterates
+  const x0 = S.start==='u' ? Array(n).fill(1/n) : [1,0,0,0];
+  const xs=[x0]; for(let k=1;k<=KMAX;k++) xs.push(matvec(G,xs[k-1]));
+  const err = r ? xs.map(x=>x.reduce((s,v,i)=>s+Math.abs(v-r[i]),0)) : null;
+  // iterations to 1e-8
+  let iters=null;
+  if(r){ let x=x0.slice(); for(let k=0;k<=KRUN;k++){ const e=x.reduce((s,v,i)=>s+Math.abs(v-r[i]),0); if(e<1e-8){iters=k;break;} x=matvec(G,x); } }
+  let scale=0.5; xs.forEach(x=>x.forEach(v=>scale=Math.max(scale,v))); if(r) r.forEach(v=>scale=Math.max(scale,v));
+  scale=Math.min(1,Math.ceil(scale*10)/10);
+  D={M,G,dangling,nullity,l2M,l2G,r,xs,err,iters,unique,scale};
+}
+
+/* ---------- UI setup ---------- */
+const sel=$('preset');
+PRESETS.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});
+const oc=document.createElement('option'); oc.value='custom'; oc.textContent='Custom (your own links)'; sel.appendChild(oc);
+const lb=$('linkBody');
+P.forEach((from,j)=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<th class="pg" scope="row">${from}</th>`+P.map((to,i)=> i===j ? `<td class="self" aria-hidden="true">—</td>` :
+    `<td><input type="checkbox" id="l${j}${i}" aria-label="${from} links to ${to}"></td>`).join('');
+  lb.appendChild(tr);
+});
+P.forEach((_,j)=>P.forEach((_,i)=>{ if(i===j) return; $('l'+j+i).addEventListener('change',e=>{
+  S.adj[j][i]=e.target.checked; S.preset='custom'; sel.value='custom'; $('presetNote').textContent='Your own web. Every change rebuilds M and G.';
+  S.k=0; stopPlay(); derive(); render(); }); }));
+
+function loadPreset(id){
+  const p=PRESETS.find(q=>q.id===id); S.preset=id; sel.value=id;
+  S.adj=P.map((_,j)=>P.map((to,i)=>p.L[P[j]].includes(to)));
+  P.forEach((_,j)=>P.forEach((_,i)=>{ if(i!==j) $('l'+j+i).checked=S.adj[j][i]; }));
+  $('presetNote').textContent=p.note; S.k=0; stopPlay(); derive(); render();
+}
+sel.addEventListener('change',()=>{ if(sel.value==='custom'){ S.preset='custom'; $('presetNote').textContent='Tick boxes below to build your own web.'; return;} loadPreset(sel.value); });
+$('alpha').addEventListener('input',()=>{ S.alpha=+$('alpha').value; stopPlay(); derive(); render(); });
+$('start').addEventListener('change',()=>{ S.start=$('start').value; S.k=0; stopPlay(); derive(); render(); });
+$('step').addEventListener('click',()=>{ stopPlay(); if(S.k<KMAX){S.k++; render();} });
+$('back').addEventListener('click',()=>{ stopPlay(); if(S.k>0){S.k--; render();} });
+$('reset').addEventListener('click',()=>{ stopPlay(); S.k=0; render(); });
+$('play').addEventListener('click',()=>{
+  if(playTimer){ stopPlay(); return; }
+  if(S.k>=KPLOT) S.k=0;
+  if(reduceMotion){ S.k=KPLOT; render(); return; }
+  $('play').textContent='Pause';
+  playTimer=setInterval(()=>{ S.k++; render(); if(S.k>=KPLOT) stopPlay(); },300);
+});
+function stopPlay(){ if(playTimer){clearInterval(playTimer); playTimer=null;} $('play').textContent='Play to k = 30'; }
+
+/* ---------- drawing ---------- */
+const NS='http://www.w3.org/2000/svg';
+const POS=[[95,85],[325,85],[325,250],[95,250]]; // A B C D
+function el(tag,attrs,parent){ const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
+function drawGraph(){
+  const svg=$('graph'); [...svg.querySelectorAll(':scope > :not(title)')].forEach(e=>e.remove());
+  const x=D.xs[S.k];
+  const rad=x.map(v=>16+42*Math.sqrt(Math.max(0,v)));
+  const eg=el('g',{},svg);
+  for(let j=0;j<n;j++) for(let i=0;i<n;i++){
+    if(i===j || !S.adj[j][i]) continue;
+    const [x1,y1]=POS[j],[x2,y2]=POS[i];
+    const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy), ux=dx/L, uy=dy/L;
+    const bend=26; const mx=(x1+x2)/2 - uy*bend, my=(y1+y2)/2 + ux*bend;
+    // start/end trimmed along the curve's end tangents
+    const t1x=mx-x1, t1y=my-y1, t1=Math.hypot(t1x,t1y), t2x=x2-mx, t2y=y2-my, t2=Math.hypot(t2x,t2y);
+    const sx=x1+t1x/t1*(rad[j]+3), sy=y1+t1y/t1*(rad[j]+3);
+    const ex=x2-t2x/t2*(rad[i]+4), ey=y2-t2y/t2*(rad[i]+4);
+    const hx=t2x/t2, hy=t2y/t2, hl=11, hw=5.5;
+    el('path',{class:'edge',d:`M${sx},${sy} Q${mx},${my} ${ex-hx*hl*0.7},${ey-hy*hl*0.7}`},eg);
+    el('path',{class:'head',d:`M${ex},${ey} L${ex-hx*hl-hy*hw},${ey-hy*hl+hx*hw} L${ex-hx*hl+hy*hw},${ey-hy*hl-hx*hw}Z`},eg);
+  }
+  P.forEach((p,i)=>{
+    const [cx,cy]=POS[i];
+    el('circle',{class:'node',cx,cy,r:rad[i]},svg);
+    el('text',{class:'nl',x:cx,y:cy},svg).textContent=p;
+    const t=el('text',{class:'nv',x:cx,y: cy < 165 ? cy-rad[i]-8 : cy+rad[i]+17},svg); t.textContent=fmt(x[i],3);
+  });
+  const links=[]; for(let j=0;j<n;j++){ const t=P.filter((_,i)=>S.adj[j][i]); links.push(P[j]+(t.length?' links to '+t.join(' and '):' has no links out')); }
+  $('graphDesc').textContent='Link graph. '+links.join('. ')+'.';
+}
+function drawBars(){
+  const x=D.xs[S.k], r=D.r;
+  $('bars').innerHTML=P.map((p,i)=>`<div class="bar" role="listitem"><span class="p">${p}</span><span class="track" aria-hidden="true"><span class="fill" style="width:${x[i]/D.scale*100}%"></span>${r?`<span class="tick" style="left:${r[i]/D.scale*100}%"></span>`:''}</span><span class="v"><span class="sr">page ${p}: ${S.k?'x'+sub(S.k):'x₀'} = </span>${fmt(x[i],4)}${r?`<span class="sr">, exact ${fmt(r[i],4)}</span>`:''}</span></div>`).join('');
+  $('lgCur').textContent = 'x'+sub(S.k)+', the current iterate';
+}
+const PL={l:58,r:18,t:16,b:36,W:520,H:300};
+function drawPlot(){
+  const svg=$('plot'); [...svg.querySelectorAll(':scope > :not(title)')].forEach(e=>e.remove());
+  const {l,r:rr,t,b,W,H}=PL, iw=W-l-rr, ih=H-t-b;
+  const Kx=Math.max(KPLOT,S.k);
+  const ymin=-12, ymax = D.err && D.err[0]>1 ? 1 : 0;
+  const X=k=>l+k/Kx*iw, Y=v=>{ const lv=Math.max(ymin,Math.log10(Math.max(v,1e-300))); return t+(ymax-lv)/(ymax-ymin)*ih; };
+  for(let e=ymin;e<=ymax;e+=2){ el('line',{class:'gl',x1:l,x2:l+iw,y1:Y(10**e),y2:Y(10**e)},svg); el('text',{x:l-8,y:Y(10**e)+4,'text-anchor':'end'},svg).textContent= e===0?'1':'10'+sup(e); }
+  for(let k=0;k<=Kx;k+= Kx>30?10:5){ el('text',{x:X(k),y:t+ih+18,'text-anchor':'middle'},svg).textContent=k; }
+  el('line',{class:'ax',x1:l,x2:l+iw,y1:t+ih,y2:t+ih},svg);
+  el('text',{x:l+iw,y:H-4,'text-anchor':'end'},svg).textContent='k (iterations)';
+  if(!D.err){
+    el('text',{x:l+iw/2,y:t+ih/2,'text-anchor':'middle',class:'lbl',fill:'currentColor'},svg).textContent='No unique PageRank vector, so no error to plot.';
+    $('plotDesc').textContent='No error plot: the ranking is not unique for this web at α = 1.'; return;
+  }
+  // prediction
+  const C=D.err[0];
+  if(D.l2G>0 && C>0){
+    const pts=[]; for(let k=0;k<=Kx;k+=0.5){ const v=C*D.l2G**k; if(Math.log10(v)<ymin){ pts.push([X(k),Y(10**ymin)]); break;} pts.push([X(k),Y(v)]); }
+    el('polyline',{class:'pred',points:pts.map(p=>p.join(',')).join(' ')},svg);
+  }
+  // actual
+  const pts=[]; for(let k=0;k<=S.k;k++) pts.push([X(k),Y(D.err[k])]);
+  el('polyline',{class:'err',points:pts.map(p=>p.join(',')).join(' ')},svg);
+  el('circle',{class:'dot',cx:pts[S.k][0],cy:pts[S.k][1],r:5},svg);
+  const cross=el('line',{class:'cross',y1:t,y2:t+ih,x1:-10,x2:-10},svg);
+  const hit=el('rect',{x:l,y:t,width:iw,height:ih,fill:'transparent'},svg);
+  const tip=$('tip');
+  hit.addEventListener('pointermove',ev=>{
+    const bb=svg.getBoundingClientRect(); const sx=(ev.clientX-bb.left)/bb.width*W;
+    const k=Math.max(0,Math.min(Kx,Math.round((sx-l)/iw*Kx)));
+    cross.setAttribute('x1',X(k)); cross.setAttribute('x2',X(k));
+    const act = k<=S.k ? fmt(D.err[k],4) : 'not yet computed';
+    tip.innerHTML=`k = <b>${k}</b><br>actual <b>${act}</b><br>predicted <b>${fmt(C*D.l2G**k,4)}</b>`;
+    tip.hidden=false; const px=X(k)/W*bb.width; tip.style.left=(px+12+160>bb.width?px-170:px+12)+'px'; tip.style.top='10px';
+  });
+  hit.addEventListener('pointerleave',()=>{ tip.hidden=true; cross.setAttribute('x1',-10); cross.setAttribute('x2',-10); });
+  $('plotDesc').textContent=`Error versus k on a log scale. At k = ${S.k} the error is ${fmt(D.err[S.k],4)}. The predicted line falls by a factor of ${fmt(D.l2G,3)} per step.`;
+}
+function drawTable(){
+  let h='';
+  for(let k=0;k<=S.k;k++){ const x=D.xs[k]; h+=`<tr class="${k===S.k?'cur':''}"><td>${k}</td>${x.map(v=>`<td>${v.toFixed(4)}</td>`).join('')}<td>${D.err?fmt(D.err[k],3):'—'}</td></tr>`; }
+  if(D.r) h+=`<tr class="exact"><td>exact r</td>${D.r.map(v=>`<td>${v.toFixed(4)}</td>`).join('')}<td></td></tr>`;
+  $('itBody').innerHTML=h;
+  const box=$('itBody').closest('.tablebox'); box.scrollTop=box.scrollHeight;
+}
+function frac(v){ if(Math.abs(v)<1e-12) return '0'; for(let d=1;d<=4;d++){ if(Math.abs(v*d-Math.round(v*d))<1e-9) return d===1?String(Math.round(v)):Math.round(v*d)+'/'+d; } return fmt(v,4); }
+function drawMats(){
+  const mat=(name,A,f,cap)=>`<div class="mat"><div><span class="m">${name}</span> <span class="note">${cap}</span></div><table><thead><tr><th></th>${P.map(p=>`<th scope="col">${p}</th>`).join('')}</tr></thead><tbody>${A.map((row,i)=>`<tr><th scope="row">${P[i]}</th>${row.map(v=>`<td>${f(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  $('mats').innerHTML = mat('M',D.M,frac,'link matrix (columns = from, rows = to)') + mat('G',D.G,v=>fmt(v,4),`Google matrix, α = ${fmt(S.alpha,2)}`);
+}
+function keys(){
+  const a=S.alpha, rows=[];
+  rows.push(['|λ₂(M)|', `<span class="num">${fmt(D.l2M,4)}</span>`+(D.nullity>=2?' (λ = 1 is repeated: the web splits into groups that never reach each other)':'')]);
+  rows.push(['|λ₂(G)|', `<span class="num">${fmt(D.l2G,4)}</span> = ${fmt(a,2)} × ${fmt(D.l2M,4)}`]);
+  let it;
+  if(!D.r) it='no unique ranking to converge to';
+  else if(D.iters===null) it=`more than ${KRUN} (the error never falls below 10⁻⁸)`;
+  else if(D.iters===0) it='0: this starting vector is already r';
+  else it=`<span class="num">${D.iters}</span> from this start`;
+  rows.push(['Steps to error < 10⁻⁸', it]);
+  if(a>0 && a<1) rows.push(['Guarantee for any web', `|λ₂(G)| ≤ α, so at most about <span class="num">${Math.round(Math.log(1e-8)/Math.log(a))}</span> steps (ln 10⁻⁸ / ln ${fmt(a,2)})`]);
+  if(D.r){ const ord=order(D.r); rows.push(['Final ranking', ord]); }
+  $('keys').innerHTML=rows.map(([d,v])=>`<dt>${d}</dt><dd>${v}</dd>`).join('');
+}
+function order(v){ const s=P.map((p,i)=>[p,v[i]]).sort((a,b)=>Math.abs(b[1]-a[1])<1e-9?0:b[1]-a[1]); let out=s[0][0]; for(let i=1;i<s.length;i++) out+=(Math.abs(s[i][1]-s[i-1][1])<1e-9?' = ':', ')+s[i][0]; return out; }
+let liveT=null;
+function status(){
+  const x=D.xs[S.k]; let chip='', cls='', txt;
+  const cur=order(x);
+  if(!D.r){ chip='No unique ranking'; cls='warn'; txt=`With α = 1, λ = 1 is repeated, so the final answer depends on where you start. Current order: ${cur}.`; }
+  else {
+    const e=D.err[S.k];
+    if(S.k===0) txt=`k = 0: the starting vector. Press Multiply by G.`;
+    else txt=`k = ${S.k}: ranking now ${cur}. Error ${fmt(e,4)}, about ${fmt(D.l2G,3)} times smaller each step.`;
+    if(D.l2G>=1-1e-9 && S.k>0){ chip='Never converges'; cls='warn'; txt+=' |λ₂(G)| = 1, so that piece of the error never shrinks.'; }
+    else if(e<1e-4 && S.k>0){ chip='Converged to 4 decimals'; cls='good'; }
+  }
+  if(D.dangling.length) txt+=` Dangling page: ${D.dangling.map(j=>P[j]).join(', ')}.`;
+  $('chip').textContent=chip; $('chip').className='chip '+cls; $('chip').hidden=!chip;
+  $('statusText').textContent=txt;
+  clearTimeout(liveT); liveT=setTimeout(()=>{ $('live').textContent=(chip?chip+'. ':'')+txt; },400);
+}
+function render(){
+  $('alphaVal').textContent=S.alpha.toFixed(2);
+  $('kread').textContent='k = '+S.k;
+  $('back').disabled=S.k===0; $('step').disabled=S.k>=KMAX;
+  drawGraph(); drawBars(); drawPlot(); drawTable(); drawMats(); keys(); status();
+}
+loadPreset('notes');
+})();
+</script>
+</body>
+</html>

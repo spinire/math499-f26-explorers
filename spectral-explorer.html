@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spectral Theorem Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=STIX+Two+Text:ital,wght@0,500;0,600;1,500&display=swap">
+<style>
+/* Layout: plane on the left, controls and readouts on the right (same system as the Week 3 explorers). */
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#18202C; --muted:#56606F; --line:#D5DBE4;
+  --grid:#E7EBF1; --axis:#98A2B2;
+  --x:#1D5CC0; --ax:#B85607; --e1:#0A7A69; --e2:#7443B5; --pt:#3A4556;
+  --chip:#E9EDF3; --good-bg:#DFF2EC; --good-ink:#08604F; --warn-bg:#F7ECDD; --warn-ink:#83460A;
+  --serif:"STIX Two Text","STIX Two Math",Cambria,"Times New Roman",serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#10141A; --surface:#171D26; --ink:#E3E8EF; --muted:#9BA5B5; --line:#2A3341;
+    --grid:#1F2732; --axis:#4C5768;
+    --x:#7EA9FF; --ax:#F2A24F; --e1:#45C9B0; --e2:#BB9CF4; --pt:#C9D1DC;
+    --chip:#232B37; --good-bg:#12342D; --good-ink:#86E3CE; --warn-bg:#3A2A17; --warn-ink:#F4C58F;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10141A; --surface:#171D26; --ink:#E3E8EF; --muted:#9BA5B5; --line:#2A3341;
+  --grid:#1F2732; --axis:#4C5768;
+  --x:#7EA9FF; --ax:#F2A24F; --e1:#45C9B0; --e2:#BB9CF4; --pt:#C9D1DC;
+  --chip:#232B37; --good-bg:#12342D; --good-ink:#86E3CE; --warn-bg:#3A2A17; --warn-ink:#F4C58F;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+header{display:grid;gap:6px;margin-bottom:22px;max-width:72ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(30px,4.2vw,42px);line-height:1.1;margin:0;text-wrap:balance}
+.lede{margin:4px 0 0}
+.m{font-family:var(--serif);font-style:italic;font-size:1.08em}
+.mu{font-family:var(--serif);font-size:1.08em}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.92em}
+.cx{color:var(--x);font-weight:600}.cax{color:var(--ax);font-weight:600}.ce1{color:var(--e1);font-weight:600}.ce2{color:var(--e2);font-weight:600}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap}
+.tab{appearance:none;background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;padding:10px 14px;font:500 15px var(--sans);color:var(--muted);cursor:pointer}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--x)}
+.tab:hover{color:var(--ink)}
+.tab .n{font-family:var(--mono);font-size:12px;margin-right:6px;color:var(--muted)}
+
+.grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:28px;align-items:start}
+@media (max-width:880px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:10px;min-width:0}
+.canvas-box{position:relative;width:100%;max-width:100%}
+canvas{display:block;width:100%;max-width:100%;border-radius:6px;touch-action:none}
+canvas.plane{aspect-ratio:1/1;cursor:crosshair}
+canvas:focus-visible{outline:3px solid var(--x);outline-offset:3px}
+.zoom{position:absolute;top:8px;right:8px;display:flex;gap:4px}
+.zoom button{font:500 13px var(--sans);min-width:32px;height:32px;padding:0 9px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);padding:0 4px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:18px;height:0;border-top:3px solid currentColor;display:inline-block}
+.sw.d{border-top-style:dashed}
+.dot{width:9px;height:9px;border-radius:50%;background:currentColor;display:inline-block}
+.status{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;padding:10px 12px;border-radius:8px;background:var(--bg);min-height:48px}
+.status p{margin:0;flex:1 1 260px}
+.chip{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.02em;padding:2px 9px;border-radius:999px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.chip.good{background:var(--good-bg);color:var(--good-ink)}
+.chip.warn{background:var(--warn-bg);color:var(--warn-ink)}
+
+.panel{display:grid;gap:0;min-width:0}
+.sec{padding:16px 0;border-top:1px solid var(--line);display:grid;gap:10px;min-width:0}
+.sec:first-child{border-top:0;padding-top:0}
+.label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0}
+.label .m,.label .mu{text-transform:none;letter-spacing:0}
+select,input[type=number]{font:15px var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+select{width:100%}
+input[type=number]{font-family:var(--mono);font-size:14px;width:100%;min-width:0}
+input[aria-invalid="true"]{border-color:var(--ax);outline:1px solid var(--ax)}
+input[readonly]{background:var(--bg);color:var(--muted)}
+:focus-visible{outline:3px solid var(--x);outline-offset:2px}
+.note{margin:0;color:var(--muted);font-size:14px}
+.mrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.matrix{display:grid;grid-template-columns:repeat(2,5.4em);gap:6px 8px;padding:6px 12px;position:relative}
+.matrix.ro{grid-template-columns:repeat(2,auto);gap:2px 14px;padding:4px 12px;font-family:var(--mono);font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+.matrix::before,.matrix::after{content:"";position:absolute;top:0;bottom:0;width:7px;border:2px solid var(--ink)}
+.matrix::before{left:0;border-right:0}
+.matrix::after{right:0;border-left:0}
+.mname{font-family:var(--serif);font-style:italic;font-size:24px}
+.op{font-family:var(--serif);font-size:20px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.slider{display:grid;gap:4px}
+.slider label{font-size:14px}
+input[type=range]{width:100%;accent-color:var(--x)}
+.checks{display:grid;gap:6px}
+.checks label{display:flex;gap:8px;align-items:flex-start;font-size:14px;cursor:pointer}
+.checks input{margin-top:3px;accent-color:var(--x)}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 14px var(--sans);padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--x);border-color:var(--x);color:var(--surface)}
+.btn[aria-pressed="true"]{border-color:var(--x);box-shadow:inset 0 0 0 1px var(--x)}
+.btn:disabled{opacity:.45;cursor:default}
+ol.try{margin:0;padding-left:1.3em;display:grid;gap:6px;font-size:14px}
+.tablebox{overflow:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:5px 10px;text-align:right;white-space:nowrap}
+th{position:sticky;top:0;background:var(--surface);font-weight:600;color:var(--muted);border-bottom:1px solid var(--line);font-family:var(--serif);font-size:15px}
+td{font-family:var(--mono);font-variant-numeric:tabular-nums}
+tfoot td{border-top:1px solid var(--line);font-weight:500}
+th:first-child,td:first-child{text-align:left}
+details summary{cursor:pointer;font-weight:600;font-size:14px}
+.algebra{display:grid;gap:8px;margin-top:10px;font-size:14px}
+.algebra p{margin:0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:baseline;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.bar{height:12px;border-radius:3px;background:var(--chip);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.foot{margin-top:28px;color:var(--muted);font-size:13px;max-width:75ch}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+tr.cur td{background:var(--bg);font-weight:500}
+.leftcol{display:grid;gap:16px;min-width:0}
+.guide{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px 16px;display:grid;gap:12px;min-width:0}
+.guide-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font:500 13px var(--sans);padding:4px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer}
+.pill:hover{color:var(--ink);border-color:var(--axis)}
+.pill[aria-current="step"]{background:var(--x);border-color:var(--x);color:var(--surface)}
+.guide h3{font-family:var(--serif);font-size:21px;font-weight:600;margin:0;line-height:1.25;text-wrap:balance}
+.guide-body{display:grid;gap:8px;max-width:68ch;font-size:15px}
+.guide-body p{margin:0}
+.callout{background:var(--bg);border-radius:8px;padding:8px 12px;font-size:14px}
+.guide .btns{justify-content:space-between}
+.guide .btns .grow{display:flex;gap:8px}
+canvas.strip{cursor:default}
+/* typeset matrices and column vectors inside text */
+.mx{display:inline-grid;vertical-align:middle;position:relative;padding:1px 7px;margin:1px 3px;font-family:var(--serif);font-style:normal;font-size:1em;line-height:1.2;column-gap:.8em;justify-items:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mx.c1{grid-template-columns:auto}
+.mx.c2{grid-template-columns:auto auto}
+.mx::before,.mx::after{content:"";position:absolute;top:1px;bottom:1px;width:4px;border:1.3px solid currentColor}
+.mx::before{left:0;border-right:0}
+.mx::after{right:0;border-left:0}
+.fr{display:inline-flex;flex-direction:column;vertical-align:middle;font-family:var(--serif);font-size:.85em;line-height:1.1;text-align:center;margin:0 1px}
+.fr>span:first-child{border-bottom:1px solid currentColor;padding:0 2px}
+.matrix.ro{font-family:var(--serif);font-size:15px}
+td .mx{font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">MATH 499 · Week 4 · Symmetric matrices and the spectral theorem</div>
+    <h1>Spectral Theorem Explorer</h1>
+    <p class="lede">A symmetric <span class="m">n</span>×<span class="m">n</span> matrix <span class="m">S</span> has <span class="m">n</span> mutually perpendicular directions along which it only stretches. The spectral theorem, <span class="mu">S = QΛQ<sup>T</sup></span>, says that is <em>all</em> it does: look at space along those directions, stretch each one by its eigenvalue, and look back. This explorer shows the 2×2 case, where there are two directions and you can see everything in the plane. Drag the blue vector <span class="m cx">x</span> and follow it to <span class="m cax">Sx</span>. The guide under the plane walks through the idea one step at a time.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Explorer mode">
+    <button class="tab" role="tab" id="tab-rsr" aria-controls="panel-rsr" aria-selected="true"><span class="n">1</span>Rotate, stretch, rotate back</button>
+    <button class="tab" role="tab" id="tab-sum" aria-controls="panel-sum" aria-selected="false" tabindex="-1"><span class="n">2</span>Sum of rank-one pieces</button>
+  </div>
+
+  <div class="grid">
+    <div class="leftcol">
+    <div class="stage">
+      <div class="canvas-box">
+        <canvas id="cv" class="plane" tabindex="0" aria-label="Coordinate plane. Drag, or use the arrow keys, to move x. Hold Shift for larger steps." aria-describedby="statusText"></canvas>
+        <div class="zoom">
+          <button id="zin" aria-label="Zoom in">+</button>
+          <button id="zout" aria-label="Zoom out">−</button>
+          <button id="zreset">Reset view</button>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="status"><span id="statusChip" class="chip"></span><p id="statusText"></p></div>
+      <div class="sr" aria-live="polite" id="live"></div>
+    </div>
+    <section class="guide" id="guide" aria-label="Understanding the picture"></section>
+    </div>
+
+    <div class="panel">
+      <section class="sec" aria-labelledby="lblMatrix">
+        <h2 class="label" id="lblMatrix">The symmetric matrix <span class="m">S</span></h2>
+        <label class="sr" for="preset">Example matrix</label>
+        <select id="preset"></select>
+        <p class="note" id="presetNote"></p>
+        <div class="mrow">
+          <span class="mname" aria-hidden="true">S =</span>
+          <div class="matrix" role="group" aria-label="Entries of S. The lower-left entry copies the upper-right one.">
+            <input type="number" step="0.1" id="s11" aria-label="Row 1, column 1">
+            <input type="number" step="0.1" id="s12" aria-label="Row 1, column 2 (also row 2, column 1)">
+            <input type="number" id="s21" readonly tabindex="-1" aria-label="Row 2, column 1, equal to row 1, column 2">
+            <input type="number" step="0.1" id="s22" aria-label="Row 2, column 2">
+          </div>
+        </div>
+        <p class="note">Type in the upper-right entry; the lower-left copies it, so <span class="m">S</span> stays symmetric.</p>
+        <dl class="kv" id="eigKV"></dl>
+      </section>
+
+      <section class="sec" id="panel-rsr" role="tabpanel" aria-labelledby="tab-rsr">
+        <h2 class="label">Apply <span class="m">S</span> in three steps</h2>
+        <p class="note">Read <span class="mu">QΛQ<sup>T</sup>x</span> from right to left. <span class="mu">Q<sup>T</sup></span> turns the plane so <span class="m">q</span><sub>1</sub> lies on the horizontal axis. <span class="mu">Λ</span> stretches along the axes. <span class="m">Q</span> turns everything back.</p>
+        <div class="btns" role="group" aria-label="Steps">
+          <button class="btn" id="st0" aria-pressed="true">Start: x</button>
+          <button class="btn" id="st1" aria-pressed="false">1 · Qᵀx</button>
+          <button class="btn" id="st2" aria-pressed="false">2 · ΛQᵀx</button>
+          <button class="btn" id="st3" aria-pressed="false">3 · QΛQᵀx</button>
+        </div>
+        <div class="slider">
+          <label for="tSlide">Progress through the steps: <span class="num" id="tVal"></span></label>
+          <input type="range" id="tSlide" min="0" max="300" step="1" value="0">
+        </div>
+        <div class="btns"><button class="btn primary" id="play">Play all three steps</button></div>
+        <div class="tablebox"><table aria-label="The vector after each step"><thead><tr><th>Step</th><th>Vector</th><th>Coordinates</th></tr></thead><tbody id="stepRows"></tbody></table></div>
+        <div class="checks">
+          <label><input type="checkbox" id="showCircle" checked> Show the circle through x and where each step sends it</label>
+          <label><input type="checkbox" id="showSquares"> Compare a square on the eigenvector lines (teal) with a square on the axes (grey)</label>
+          <label><input type="checkbox" id="showLevel"> <span>Show the level curve x<sup>T</sup>Sx = c through x</span></label>
+        </div>
+        <p class="note" id="quadNote"></p>
+        <h2 class="label" style="margin-top:6px">What to try</h2>
+        <ol class="try">
+          <li><strong>Covariance matrix:</strong> press Play. After step 1 the teal arrow <span class="m">q</span><sub>1</sub> lies on the horizontal axis. In step 2, which direction is stretched by 6 and which is left at length 1?</li>
+          <li>Stop at step 2. The ellipse has no tilt there. Compare with the quadratic form: <span class="mu">5x₁² + 4x₁x₂ + 2x₂²</span> has a cross term; <span class="mu">6y₁² + y₂²</span> does not (notes §4).</li>
+          <li>Drag <span class="m">x</span> onto the teal line. Which steps change its direction?</li>
+          <li><strong>Negative eigenvalue:</strong> watch step 2. What happens to the purple arrow as its stretch factor passes through 0?</li>
+          <li><strong>Repeated eigenvalue:</strong> step 1 does nothing useful. Why can any orthonormal pair serve as <span class="m">Q</span>?</li>
+        </ol>
+      </section>
+
+      <section class="sec" id="panel-sum" role="tabpanel" aria-labelledby="tab-sum" hidden>
+        <h2 class="label"><span class="mu">S = λ₁q₁q₁ᵀ + λ₂q₂q₂ᵀ</span></h2>
+        <div class="mrow" id="pieceMats"></div>
+        <p class="note" id="pieceNote"></p>
+        <div class="checks">
+          <label><input type="checkbox" id="showDrops" checked> Show the projections (shadows) of x on each eigenvector line</label>
+          <label><input type="checkbox" id="showAdd"> Show how the two shadows add up to x</label>
+          <label><input type="checkbox" id="onlyOne"> Keep only the largest piece, the one with the largest |λ| (a rank-one approximation)</label>
+        </div>
+        <dl class="kv" id="sumKV"></dl>
+        <h2 class="label" style="margin-top:6px">What to try</h2>
+        <ol class="try">
+          <li><strong>Covariance matrix:</strong> check that the two matrices above add up to <span class="m">S</span> = <span class="mx c2" role="math" aria-label="matrix with rows 5, 2 and 2, 2"><span>5</span><span>2</span><span>2</span><span>2</span></span>.</li>
+          <li>Drag <span class="m">x</span> around. The teal piece is λ₁ times the projection of <span class="m">x</span> onto the teal line. Where must <span class="m">x</span> be for the purple piece to vanish?</li>
+          <li>Turn on <em>Keep only the largest piece</em>. How far is the approximation from <span class="m">Sx</span>? Where must <span class="m">x</span> point for the error to be largest? Why is it never more than |λ₂|·|x|? (Week 7 builds low-rank approximations this way.)</li>
+          <li><strong>Diagonal:</strong> what are <span class="m">q</span><sub>1</sub><span class="m">q</span><sub>1</sub><sup>T</sup> and <span class="m">q</span><sub>2</sub><span class="m">q</span><sub>2</sub><sup>T</sup> here?</li>
+        </ol>
+      </section>
+
+      <section class="sec">
+        <details id="answers">
+          <summary>Show the algebra: eigenvalues, eigenvectors, and Q</summary>
+          <div class="algebra" id="algebra"></div>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <p class="foot">Keyboard: focus the plane and use the arrow keys to move <span class="m">x</span> (Shift for larger steps), or use the step buttons and the progress slider. The status line under the plane describes what is on screen. Companion to the Week 4 notes and Strang, §I.7. The covariance matrix is the one from the notes, Table 1.</p>
+</div>
+
+<script>
+/* Shared helpers for the Week 4 explorers */
+const $ = id => document.getElementById(id);
+const MINUS = '−';
+const SUBS = '₀₁₂₃₄₅₆₇₈₉', SUPS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+const sub = n => String(n).split('').map(d=>SUBS[+d]).join('');
+const sup = n => String(n).replace(/-/g,'⁻').replace(/\d/g,d=>SUPS[+d]);
+function fmt(n, dp=3){
+  if(!isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if(a < 1e-10) return '0';
+  if(a >= 1e5 || a < 1e-4){
+    const [m,e] = n.toExponential(2).split('e');
+    return (m.replace(/\.?0+$/,'')+'×10'+sup(parseInt(e,10))).replace('-',MINUS);
+  }
+  let s = n.toFixed(dp);
+  if(s.includes('.')) s = s.replace(/\.?0+$/,'');
+  if(s === '-0') s = '0';
+  return s.replace('-',MINUS);
+}
+const fp = (n,dp=3) => n<0 ? '('+fmt(n,dp)+')' : fmt(n,dp);
+const ent = (e,dp) => typeof e==='number' ? fmt(e,dp) : String(e);
+const spoken = s => String(s).replace(/<[^>]+>/g,'');
+/* column vector, typeset; entries may be numbers or strings */
+function V(v,dp=3){ const a=ent(v[0],dp), b=ent(v[1],dp); return `<span class="mx c1" role="math" aria-label="vector ${spoken(a)}, ${spoken(b)}"><span>${a}</span><span>${b}</span></span>`; }
+/* 2x2 matrix, typeset inline */
+function Mx(A,dp=3){ const e=[A[0][0],A[0][1],A[1][0],A[1][1]].map(x=>ent(x,dp)); return `<span class="mx c2" role="math" aria-label="${spokenM(A,dp)}">${e.map(x=>`<span>${x}</span>`).join('')}</span>`; }
+function spokenM(A,dp=3){ return `matrix with rows ${ent(A[0][0],dp)}, ${ent(A[0][1],dp)} and ${ent(A[1][0],dp)}, ${ent(A[1][1],dp)}`; }
+function frac(n,d){ return `<span class="fr" role="math" aria-label="${n} over ${d}"><span>${n}</span><span>${d}</span></span>`; }
+const fv = (v,dp=3) => V(v,dp);
+/* text for screen readers: typeset pieces replaced by their spoken labels */
+function plainOf(html){ const d=document.createElement('div'); d.innerHTML=html; d.querySelectorAll('[role=math]').forEach(m=>m.replaceWith(' '+m.getAttribute('aria-label')+' ')); return d.textContent.replace(/\s+/g,' ').trim(); }
+const norm = v => Math.hypot(v[0],v[1]);
+const dot = (a,b) => a[0]*b[0]+a[1]*b[1];
+const mul = (A,v) => [A[0][0]*v[0]+A[0][1]*v[1], A[1][0]*v[0]+A[1][1]*v[1]];
+const mm = (A,B) => [[A[0][0]*B[0][0]+A[0][1]*B[1][0], A[0][0]*B[0][1]+A[0][1]*B[1][1]],[A[1][0]*B[0][0]+A[1][1]*B[1][0], A[1][0]*B[0][1]+A[1][1]*B[1][1]]];
+const rot = t => [[Math.cos(t),-Math.sin(t)],[Math.sin(t),Math.cos(t)]];
+const clean = l => Math.round(l*1e9)/1e9;
+
+/* Symmetric 2x2 [[a,b],[b,d]]: eigenvalues l1 >= l2, q1 at angle th (in (-90°, 90°]). */
+function symEig(a,b,d){
+  const m=(a+d)/2, r=Math.hypot((a-d)/2,b);
+  const sc=1+Math.abs(a)+Math.abs(b)+Math.abs(d);
+  const out={l1:clean(m+r), l2:clean(m-r), repeated: r<1e-9*sc};
+  let th = out.repeated ? 0 : 0.5*Math.atan2(2*b, a-d);
+  if(th<=-Math.PI/2+1e-12) th+=Math.PI;
+  if(th>Math.PI/2) th-=Math.PI;
+  out.th=th; out.q1=[Math.cos(th),Math.sin(th)];
+  return out;
+}
+/* Write a unit vector as (p, q)/√n with small integers when possible */
+function unitStr(u){
+  let p=u[0], q=u[1]; const m=Math.max(Math.abs(p),Math.abs(q)); p/=m; q/=m;
+  for(let k=1;k<=12;k++){
+    const P=k*p, Q=k*q;
+    if(Math.abs(P-Math.round(P))<1e-6 && Math.abs(Q-Math.round(Q))<1e-6){
+      const a=Math.round(P), b=Math.round(Q), n=a*a+b*b, s=Math.round(Math.sqrt(n));
+      const sgn = (u[0]*a+u[1]*b) < 0 ? -1 : 1;
+      const A=(sgn*a), B=(sgn*b);
+      if(s*s===n) return V([A/s,B/s]);
+      if(n>200) break;
+      return frac('1','√'+n)+V([A,B]);
+    }
+  }
+  return V(u);
+}
+function niceStep(raw){
+  const p=Math.pow(10,Math.floor(Math.log10(raw))); const f=raw/p;
+  return (f<1.5?1:f<3.5?2:f<7.5?5:10)*p;
+}
+function themeColors(){
+  const cs=getComputedStyle(document.documentElement);
+  const g=n=>cs.getPropertyValue(n).trim();
+  return {bg:g('--bg'),surface:g('--surface'),ink:g('--ink'),muted:g('--muted'),grid:g('--grid'),axis:g('--axis'),line:g('--line'),x:g('--x'),ax:g('--ax'),e1:g('--e1'),e2:g('--e2'),pt:g('--pt')};
+}
+function drawArrow(ctx,p,q,color,w){
+  const dx=q[0]-p[0], dy=q[1]-p[1], L=Math.hypot(dx,dy);
+  if(L<1) return;
+  const ux=dx/L, uy=dy/L, hl=Math.min(12, L*0.45), hw=hl*0.5;
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0]-ux*hl*0.8,q[1]-uy*hl*0.8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]-ux*hl-uy*hw, q[1]-uy*hl+ux*hw); ctx.lineTo(q[0]-ux*hl+uy*hw, q[1]-uy*hl-ux*hw); ctx.closePath(); ctx.fill();
+}
+function drawLabel(ctx,t,x,y,color,halo,align,font){
+  ctx.font=font||'italic 500 18px "STIX Two Text", serif'; ctx.textAlign=align||'center'; ctx.textBaseline='middle';
+  ctx.lineWidth=4; ctx.strokeStyle=halo; ctx.lineJoin='round'; ctx.strokeText(t,x,y);
+  ctx.fillStyle=color; ctx.fillText(t,x,y);
+}
+function setupCanvas(cv, aspect){
+  const ctx=cv.getContext('2d');
+  const W=cv.clientWidth; const H=Math.round(W/(aspect||1));
+  const dpr=window.devicePixelRatio||1;
+  if(cv.width!==Math.round(W*dpr) || cv.height!==Math.round(H*dpr)){ cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,W,H};
+}
+/* grid for a square plane centred at (cx,cy) with half-width R */
+function drawGrid(ctx,W,R,c,col,labels){
+  const s=W/2/R, step=niceStep(R/3.2);
+  ctx.fillStyle=col.surface; ctx.fillRect(0,0,W,W);
+  ctx.lineWidth=1;
+  const x0=Math.ceil((c[0]-R)/step)*step, y0=Math.ceil((c[1]-R)/step)*step;
+  ctx.strokeStyle=col.grid; ctx.beginPath();
+  for(let g=x0; g<=c[0]+R+1e-9; g+=step){ const X=W/2+(g-c[0])*s; ctx.moveTo(X,0); ctx.lineTo(X,W); }
+  for(let g=y0; g<=c[1]+R+1e-9; g+=step){ const Y=W/2-(g-c[1])*s; ctx.moveTo(0,Y); ctx.lineTo(W,Y); }
+  ctx.stroke();
+  const ox=W/2-c[0]*s, oy=W/2+c[1]*s;
+  ctx.strokeStyle=col.axis; ctx.beginPath();
+  if(ox>=0&&ox<=W){ ctx.moveTo(ox,0); ctx.lineTo(ox,W); }
+  if(oy>=0&&oy<=W){ ctx.moveTo(0,oy); ctx.lineTo(W,oy); }
+  ctx.stroke();
+  if(labels===false) return {s,step};
+  ctx.font='11px "IBM Plex Mono", ui-monospace, monospace'; ctx.fillStyle=col.muted;
+  const ly=Math.min(Math.max(oy+4,4),W-16), lx=Math.min(Math.max(ox-5,30),W-4);
+  for(let g=x0; g<=c[0]+R+1e-9; g+=step){ if(Math.abs(g)<step/2 && ox>0 && ox<W) continue; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.fillText(fmt(g,3), W/2+(g-c[0])*s, ly); }
+  for(let g=y0; g<=c[1]+R+1e-9; g+=step){ if(Math.abs(g)<step/2 && oy>0 && oy<W) continue; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.fillText(fmt(g,3), lx, W/2-(g-c[1])*s); }
+  return {s,step};
+}
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function onThemeChange(fn){
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',fn);
+  new MutationObserver(fn).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(fn);
+}
+function wireTabs(ids, onSet){
+  const tabs=ids.map(i=>$('tab-'+i));
+  function set(k){
+    tabs.forEach((t,j)=>{ const on=j===k; t.setAttribute('aria-selected',on); t.tabIndex=on?0:-1; $('panel-'+ids[j]).hidden=!on; });
+    onSet(ids[k]);
+  }
+  tabs.forEach((t,i)=>{
+    t.addEventListener('click',()=>set(i));
+    t.addEventListener('keydown',e=>{
+      let j=null;
+      if(e.key==='ArrowRight') j=(i+1)%tabs.length;
+      if(e.key==='ArrowLeft') j=(i-1+tabs.length)%tabs.length;
+      if(j!==null){ tabs[j].focus(); set(j); e.preventDefault(); }
+    });
+  });
+  return set;
+}
+function makeLive(el){
+  let t=null;
+  return msg=>{ clearTimeout(t); t=setTimeout(()=>{ el.textContent=msg; },500); };
+}
+function matHTML(M,dp=3){
+  return `<div class="matrix ro" role="math" aria-label="${spokenM(M,dp)}">${[M[0][0],M[0][1],M[1][0],M[1][1]].map(v=>`<span>${fmt(v,dp)}</span>`).join('')}</div>`;
+}
+/* "Understanding the picture" walkthrough: ideas = [{short, title, body:()=>html, show:()=>void}] per tab */
+function makeGuide(el, getIdeas, getKey){
+  const idx={}; let built=null;
+  function build(focusId){
+    const k=getKey(), ideas=getIdeas(), i=Math.min(idx[k]||0, ideas.length-1);
+    el.innerHTML=`<div class="guide-head"><h2 class="label">Understanding the picture</h2><span class="note">Idea ${i+1} of ${ideas.length}</span></div>
+      <div class="pills" role="list">${ideas.map((d,j)=>`<button class="pill" role="listitem" id="gp${j}" ${j===i?'aria-current="step"':''} aria-label="Idea ${j+1}: ${d.title}">${j+1} · ${d.short}</button>`).join('')}</div>
+      <h3 id="gTitle">${ideas[i].title}</h3>
+      <div class="guide-body" id="gBody" aria-live="off"></div>
+      <div class="btns"><button class="btn" id="gPrev" ${i===0?'disabled':''}>Previous idea</button>
+        <span class="grow">${ideas[i].show?'<button class="btn primary" id="gShow">Show me</button>':''}<button class="btn" id="gNext" ${i===ideas.length-1?'disabled':''}>Next idea</button></span></div>`;
+    ideas.forEach((_,j)=>el.querySelector('#gp'+j).addEventListener('click',()=>go(j,'gp'+j)));
+    el.querySelector('#gPrev').addEventListener('click',()=>go(i-1,'gPrev'));
+    el.querySelector('#gNext').addEventListener('click',()=>go(i+1,'gNext'));
+    const sh=el.querySelector('#gShow'); if(sh) sh.addEventListener('click',()=>ideas[i].show());
+    built={k,i};
+    update();
+    if(focusId){ const f=el.querySelector('#'+focusId); if(f && !f.disabled) f.focus(); else { const t=el.querySelector('#gTitle'); t.tabIndex=-1; t.focus(); } }
+  }
+  function go(j,focusId){ const k=getKey(); idx[k]=Math.max(0,j); build(focusId); }
+  function update(){
+    const k=getKey();
+    if(!built || built.k!==k){ build(); return; }
+    const ideas=getIdeas(); const b=el.querySelector('#gBody'); if(b) b.innerHTML=ideas[built.i].body();
+  }
+  return {update, build};
+}
+
+(function(){
+const PRESETS = [
+  {id:'cov', name:'Covariance matrix from the notes', S:[5,2,2], x:[0,1],
+   note:'The covariance matrix <span class="m">C</span> = '+Mx([[5,2],[2,2]])+' from notes §2: variances 5 (hours) and 2 (score), covariance 2.'},
+  {id:'sym', name:'Symmetric example, eigenvalues 3 and 1', S:[2,1,2], x:[1,0],
+   note:'<span class="m">S</span> = '+Mx([[2,1],[1,2]])+', the symmetric example from the Week 3 Eigenvector Explorer. Eigenvalues 3 and 1.'},
+  {id:'flip', name:'Negative eigenvalue', S:[1,2,1], x:[1,0.3],
+   note:'Eigenvalues 3 and −1. Step 2 flips the q₂ direction.'},
+  {id:'diag', name:'Diagonal', S:[3,0,1], x:[0.8,0.6],
+   note:'Already diagonal: Q = I, so steps 1 and 3 do nothing.'},
+  {id:'sing', name:'Singular (λ₂ = 0)', S:[2,-2,2], x:[1,0.4],
+   note:'Eigenvalues 4 and 0. Step 2 squashes the plane onto the q₁ line.'},
+  {id:'rep', name:'Repeated eigenvalue', S:[2,0,2], x:[0.8,0.6],
+   note:'S = 2I. Every direction is an eigenvector; any orthonormal pair can be Q (notes §6).'},
+];
+const S = {a:5,b:2,d:2, E:null, x:[0,1], mode:'rsr', t:0, zoom:1, frozenR:null, preset:'cov',
+  showCircle:true, showLevel:false, showDrops:true, onlyOne:false, showSquares:false, showAdd:false};
+let anim=null;
+
+const sel=$('preset');
+PRESETS.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
+{ const o=document.createElement('option'); o.value='custom'; o.textContent='Custom (edit the entries)'; sel.appendChild(o); }
+const cells={a:$('s11'),b:$('s12'),d:$('s22')};
+
+function compute(){ S.E=symEig(S.a,S.b,S.d); }
+function syncCells(){
+  cells.a.value=+S.a.toFixed(4); cells.b.value=+S.b.toFixed(4); cells.d.value=+S.d.toFixed(4); $('s21').value=+S.b.toFixed(4);
+  Object.values(cells).forEach(c=>c.removeAttribute('aria-invalid'));
+}
+function loadPreset(id){
+  const p=PRESETS.find(q=>q.id===id); if(!p) return;
+  S.preset=id; sel.value=id; [S.a,S.b,S.d]=p.S; S.x=p.x.slice(); S.zoom=1; S.t=0; stopAnim();
+  $('presetNote').innerHTML=p.note; syncCells(); compute(); render();
+}
+sel.addEventListener('change',()=>{
+  if(sel.value==='custom'){ S.preset='custom'; $('presetNote').textContent='Type any entries. Everything updates as you type.'; render(); return; }
+  loadPreset(sel.value);
+});
+Object.entries(cells).forEach(([k,c])=>c.addEventListener('input',()=>{
+  const v=parseFloat(c.value); if(!isFinite(v)){ c.setAttribute('aria-invalid','true'); return; }
+  c.removeAttribute('aria-invalid'); S[k]=v; if(k==='b') $('s21').value=v;
+  if(S.preset!=='custom'){ S.preset='custom'; sel.value='custom'; $('presetNote').textContent='Type any entries. Everything updates as you type.'; }
+  compute(); render();
+}));
+
+/* ---------- geometry ---------- */
+function Q(){ return rot(S.E.th); }
+function q2(){ const th=S.E.th; return [-Math.sin(th),Math.cos(th)]; }
+function Lam(){ return [[S.E.l1,0],[0,S.E.l2]]; }
+function Mt(t){
+  const th=S.E.th, l1=S.E.l1, l2=S.E.l2;
+  if(t<=1) return rot(-th*t);
+  if(t<=2){ const s=t-1; return mm([[1+(l1-1)*s,0],[0,1+(l2-1)*s]], rot(-th)); }
+  const s=t-2; return mm(rot(th*s), mm(Lam(), rot(-th)));
+}
+function Rpart(t){ const th=S.E.th; return t<=1? rot(-th*t) : t<=2? rot(-th) : rot(-th*(3-t)); }
+const Smat = () => [[S.a,S.b],[S.b,S.d]];
+const Sx = () => mul(Smat(),S.x);
+function ys(){ return [dot(S.E.q1,S.x), dot(q2(),S.x)]; }
+/* which piece has the larger |λ| (kept in the rank-one approximation) */
+function bigK(){ return Math.abs(S.E.l1)>=Math.abs(S.E.l2) ? 1 : 2; }
+function keptInfo(){
+  const E=S.E, y=ys(), k=bigK(), q=k===1?E.q1:q2(), l=k===1?E.l1:E.l2, c=k===1?y[0]:y[1];
+  const ld=k===1?E.l2:E.l1, cd=k===1?y[1]:y[0];
+  return {k, j:3-k, q, l, c, ld, cd, v:[l*c*q[0], l*c*q[1]], err:Math.abs(ld*cd)};
+}
+function ellipseDesc(r){
+  const E=S.E, a=Math.abs(E.l1)*r, b=Math.abs(E.l2)*r;
+  if(Math.min(a,b)<1e-9) return `was flattened onto a segment of half-length ${fmt(Math.max(a,b))} along ${a>=b?'q₁':'q₂'}`;
+  return `became an ellipse with half-lengths ${fmt(a)} along q₁ and ${fmt(b)} along q₂`;
+}
+
+/* ---------- controls ---------- */
+const stepBtns=[0,1,2,3].map(i=>$('st'+i));
+stepBtns.forEach((b,i)=>b.addEventListener('click',()=>{ stopAnim(); goTo(i); }));
+function goTo(target){
+  if(reduceMotion || Math.abs(target-S.t)<1e-6){ S.t=target; render(); return; }
+  const from=S.t, dur=650*Math.abs(target-from), t0=performance.now();
+  anim={raf:0};
+  const tick=now=>{ const f=Math.min(1,(now-t0)/dur), e=f<.5?2*f*f:1-Math.pow(-2*f+2,2)/2; S.t=from+(target-from)*e; render(); if(f<1 && anim) anim.raf=requestAnimationFrame(tick); else anim=null; };
+  anim.raf=requestAnimationFrame(tick);
+}
+$('tSlide').addEventListener('input',()=>{ stopAnim(); S.t=+$('tSlide').value/100; render(); });
+$('play').addEventListener('click',()=>{
+  if(anim){ stopAnim(); return; }
+  if(reduceMotion){ S.t=3; render(); return; }
+  const start = S.t>=2.999 ? 0 : S.t; S.t=start;
+  const t0=performance.now(), from=start;
+  $('play').textContent='Pause';
+  anim={raf:0, play:true};
+  const tick=now=>{
+    const el=(now-t0)/1000; // 1.6 s per step, 0.5 s pause at each step
+    let t=from, rem=el; let cur=from;
+    while(rem>0 && cur<3){ const nxt=Math.floor(cur+1e-9)+1; const need=(nxt-cur)*1.6; if(rem<need){ cur+=rem/1.6; rem=0; } else { rem-=need; cur=nxt; rem-=0.5; } }
+    t=Math.min(3,cur); S.t=t; render();
+    if(t<3 && anim) anim.raf=requestAnimationFrame(tick); else stopAnim();
+  };
+  anim.raf=requestAnimationFrame(tick);
+});
+function stopAnim(){ if(anim){ cancelAnimationFrame(anim.raf); anim=null; } $('play').textContent='Play all three steps'; }
+[['showCircle','showCircle'],['showLevel','showLevel'],['showDrops','showDrops'],['onlyOne','onlyOne'],['showSquares','showSquares'],['showAdd','showAdd']].forEach(([id,k])=>$(id).addEventListener('change',()=>{ S[k]=$(id).checked; render(); }));
+$('zin').addEventListener('click',()=>{ S.zoom/=1.25; render(); });
+$('zout').addEventListener('click',()=>{ S.zoom*=1.25; render(); });
+$('zreset').addEventListener('click',()=>{ S.zoom=1; render(); });
+const setTab = wireTabs(['rsr','sum'], m=>{ S.mode=m; stopAnim(); render(); });
+
+/* ---------- canvas ---------- */
+const cv=$('cv'); const view={R:2,s:100,W:400};
+let dragging=false;
+function toWorld(e){ const r=cv.getBoundingClientRect(); return [(e.clientX-r.left-r.width/2)/view.s, (r.width/2-(e.clientY-r.top))/view.s]; }
+function setX(v){ S.x=v; render(); }
+cv.addEventListener('pointerdown',e=>{ dragging=true; S.frozenR=view.R; cv.setPointerCapture(e.pointerId); stopAnim(); setX(snap(toWorld(e))); });
+cv.addEventListener('pointermove',e=>{ if(dragging) setX(snap(toWorld(e))); });
+const endDrag=()=>{ if(dragging){ dragging=false; S.frozenR=null; render(); } };
+cv.addEventListener('pointerup',endDrag); cv.addEventListener('pointercancel',endDrag);
+cv.addEventListener('keydown',e=>{
+  const d={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,1],ArrowDown:[0,-1]}[e.key];
+  if(!d) return; e.preventDefault();
+  const st=view.R/(e.shiftKey?8:50); setX([S.x[0]+d[0]*st, S.x[1]+d[1]*st]);
+});
+function snap(v){
+  const r=norm(v); if(r<1e-9 || S.E.repeated) return v;
+  for(const u of [S.E.q1,q2()]){ const c=dot(v,u)/r; if(Math.abs(c)>Math.cos(2*Math.PI/180)){ const s=Math.sign(c); return [s*r*u[0],s*r*u[1]]; } }
+  return v;
+}
+function onLine(){
+  const r=norm(S.x); if(r<1e-9) return 0;
+  if(S.E.repeated) return 3;
+  if(Math.abs(dot(S.x,S.E.q1))/r>1-1e-9) return 1;
+  if(Math.abs(dot(S.x,q2()))/r>1-1e-9) return 2;
+  return 0;
+}
+
+function fitR(){
+  const r=norm(S.x)||1, E=S.E;
+  let m;
+  if(S.mode==='rsr') m=r*Math.max(1,Math.abs(E.l1),Math.abs(E.l2));
+  else { const y=ys(); const s1=[E.l1*y[0]*E.q1[0],E.l1*y[0]*E.q1[1]]; m=Math.max(r,norm(Sx()),norm(s1)); if(S.onlyOne) m=Math.max(m, r*Math.max(Math.abs(E.l1),Math.abs(E.l2))); else if(S.showAdd) m=r*1.25; }
+  return Math.max(m*1.3,0.5)*S.zoom;
+}
+
+function draw(){
+  const col=themeColors();
+  const {ctx,W}=setupCanvas(cv,1); if(!W) return;
+  const R=S.frozenR||fitR(); view.R=R;
+  const {s}=drawGrid(ctx,W,R,[0,0],col); view.s=s;
+  const P=v=>[W/2+v[0]*s, W/2-v[1]*s];
+  const E=S.E, q1=E.q1, qq2=q2(), r=norm(S.x);
+  const line=(u,c,alpha)=>{ const L=R*3; const a=P([-u[0]*L,-u[1]*L]), b=P([u[0]*L,u[1]*L]); ctx.globalAlpha=alpha; ctx.strokeStyle=c; ctx.lineWidth=1.6; ctx.setLineDash([7,6]); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1; };
+  const curve=(fn,c,w,alpha,dash)=>{ ctx.strokeStyle=c; ctx.lineWidth=w; ctx.globalAlpha=alpha; if(dash) ctx.setLineDash(dash); ctx.beginPath(); for(let i=0;i<=200;i++){ const t=i/200*2*Math.PI; const q=P(fn(t)); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); } ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1; };
+  const tip=(t,v,c,base)=>{ const q=P(v), b=P(base||[0,0]); const dx=q[0]-b[0], dy=q[1]-b[1], L=Math.hypot(dx,dy); if(L<2) return; drawLabel(ctx,t,q[0]+dx/L*20,q[1]+dy/L*20,c,col.surface); };
+
+  if(!E.repeated){ line(q1,col.e1,.55); line(qq2,col.e2,.55); }
+
+  if(S.mode==='rsr'){
+    const M=Mt(S.t);
+    if(S.showLevel){
+      const c=dot(S.x,mul(Smat(),S.x));
+      if(Math.abs(c)>1e-9){
+        const Rp=Rpart(S.t);
+        ctx.strokeStyle=col.muted; ctx.lineWidth=1.4; ctx.setLineDash([3,4]); ctx.beginPath();
+        let pen=false;
+        for(let i=0;i<=720;i++){
+          const ph=i/720*2*Math.PI, u=[Math.cos(ph),Math.sin(ph)], qf=dot(u,mul(Smat(),u));
+          const rr=qf!==0? c/qf : -1;
+          if(rr<=0 || Math.sqrt(rr)>R*2.5){ pen=false; continue; }
+          const p=P(mul(Rp,[Math.sqrt(rr)*u[0],Math.sqrt(rr)*u[1]]));
+          pen? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1]); pen=true;
+        }
+        ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+    if(S.showSquares && r>1e-9){
+      const sqE=[[0,0],[r*q1[0],r*q1[1]],[r*(q1[0]+qq2[0]),r*(q1[1]+qq2[1])],[r*qq2[0],r*qq2[1]]], sqA=[[0,0],[r,0],[r,r],[0,r]];
+      [[sqA,col.muted],[sqE,col.e1]].forEach(([sq,c])=>{ ctx.beginPath(); sq.forEach((v,i)=>{ const q=P(mul(M,v)); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); }); ctx.closePath(); ctx.fillStyle=c; ctx.globalAlpha=.14; ctx.fill(); ctx.globalAlpha=.8; ctx.strokeStyle=c; ctx.lineWidth=1.5; ctx.stroke(); ctx.globalAlpha=1; });
+    }
+    if(S.showCircle && r>1e-9){
+      curve(t=>[r*Math.cos(t),r*Math.sin(t)], col.x, 1.4, .45, [2,4]);
+      if(S.t>0) curve(t=>mul(M,[r*Math.cos(t),r*Math.sin(t)]), col.ax, 2, .75);
+    }
+    if(r>1e-9){
+      const a1=mul(M,[r*q1[0],r*q1[1]]), a2=mul(M,[r*qq2[0],r*qq2[1]]);
+      drawArrow(ctx,P([0,0]),P(a1),col.e1,2.6); drawArrow(ctx,P([0,0]),P(a2),col.e2,2.6);
+      const near=Math.abs(S.t-Math.round(S.t))<0.02;
+      if(near && !E.repeated){
+        const k=Math.round(S.t);
+        const n1=['q₁','Qᵀq₁','ΛQᵀq₁','Sq₁'][k], n2=['q₂','Qᵀq₂','ΛQᵀq₂','Sq₂'][k];
+        const busy=[P(S.x),P(mul(M,S.x))], free=p=>busy.every(b=>Math.hypot(b[0]-p[0],b[1]-p[1])>26);
+        const L1=offset(P(a1),P([0,0]),18), L2=offset(P(a2),P([0,0]),18);
+        if(norm(a1)>0.08*R && free(L1)) drawLabel(ctx,n1,...L1,col.e1,col.surface,'center','italic 500 15px "STIX Two Text", serif');
+        if(norm(a2)>0.08*R && free(L2)) drawLabel(ctx,n2,...L2,col.e2,col.surface,'center','italic 500 15px "STIX Two Text", serif');
+      }
+    }
+    const Mx=mul(M,S.x);
+    if(S.t>0){ ctx.globalAlpha=.35; drawArrow(ctx,P([0,0]),P(S.x),col.x,3); ctx.globalAlpha=1; }
+    drawArrow(ctx,P([0,0]),P(Mx),S.t>0?col.ax:col.x,3.2);
+    if(Math.abs(S.t-Math.round(S.t))<0.02){
+      const k=Math.round(S.t); tip(['x','Qᵀx','ΛQᵀx','Sx'][k],Mx,k?col.ax:col.x);
+      if(k>0) tip('x',S.x,col.x);
+    }
+  } else {
+    const y=ys(), l1=E.l1, l2=E.l2;
+    const p1=[y[0]*q1[0],y[0]*q1[1]], p2=[y[1]*qq2[0],y[1]*qq2[1]];
+    const s1=[l1*p1[0],l1*p1[1]], s2=[l2*p2[0],l2*p2[1]], sx=Sx();
+    if(S.showDrops){
+      ctx.strokeStyle=col.muted; ctx.lineWidth=1.2; ctx.setLineDash([3,3]);
+      [p1,p2].forEach(p=>{ const a=P(S.x), b=P(p); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); });
+      ctx.setLineDash([]);
+      [[p1,col.e1],[p2,col.e2]].forEach(([p,c])=>{ const q=P(p); ctx.fillStyle=c; ctx.beginPath(); ctx.arc(q[0],q[1],4.5,0,2*Math.PI); ctx.fill(); });
+    }
+    if(S.showAdd){
+      ctx.strokeStyle=col.muted; ctx.lineWidth=1; ctx.setLineDash([2,3]); const a=P(p2), b=P(S.x); ctx.beginPath(); ctx.moveTo(P([0,0])[0],P([0,0])[1]); ctx.lineTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); ctx.setLineDash([]);
+      drawArrow(ctx,P([0,0]),P(p1),col.e1,2.6); drawArrow(ctx,P(p1),P(S.x),col.e2,2.6);
+      const m1=P([p1[0]/2,p1[1]/2]), m2=P([(p1[0]+S.x[0])/2,(p1[1]+S.x[1])/2]);
+      if(norm(p1)*s>40) drawLabel(ctx,'shadow on q₁',m1[0],m1[1]+14,col.e1,col.surface,'center','600 12px "IBM Plex Sans", sans-serif');
+      if(norm(p2)*s>40) drawLabel(ctx,'shadow on q₂',m2[0]+10,m2[1],col.e2,col.surface,'left','600 12px "IBM Plex Sans", sans-serif');
+    }
+    if(S.onlyOne && r>1e-9){
+      const K=keptInfo(), cK=K.k===1?col.e1:col.e2;
+      curve(t=>[r*Math.cos(t),r*Math.sin(t)], col.x, 1.3, .45, [2,4]);
+      curve(t=>mul(Smat(),[r*Math.cos(t),r*Math.sin(t)]), col.ax, 1.8, .55);
+      const h=Math.abs(K.l)*r, a=P([-h*K.q[0],-h*K.q[1]]), b=P([h*K.q[0],h*K.q[1]]);
+      ctx.strokeStyle=cK; ctx.globalAlpha=.35; ctx.lineWidth=7; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); ctx.globalAlpha=1;
+      drawArrow(ctx,P([0,0]),P(sx),col.ax,3.2);
+      drawArrow(ctx,P([0,0]),P(K.v),cK,2.8);
+      ctx.strokeStyle=col.ink; ctx.lineWidth=1.6; ctx.setLineDash([2,3]); const e1=P(K.v), e2=P(sx); ctx.beginPath(); ctx.moveTo(e1[0],e1[1]); ctx.lineTo(e2[0],e2[1]); ctx.stroke(); ctx.setLineDash([]);
+    } else {
+      ctx.globalAlpha = S.showAdd ? .28 : 1;
+      drawArrow(ctx,P([0,0]),P(sx),col.ax,3.2);
+      drawArrow(ctx,P([0,0]),P(s1),col.e1,2.6);
+      drawArrow(ctx,P(s1),P(sx),col.e2,2.6);
+      ctx.globalAlpha=1;
+    }
+    drawArrow(ctx,P([0,0]),P(S.x),col.x,3.2);
+    tip('Sx',sx,col.ax); tip('x',S.x,col.x);
+  }
+  const h=P(S.x); ctx.fillStyle=col.surface; ctx.strokeStyle=col.x; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.arc(h[0],h[1],7,0,2*Math.PI); ctx.fill(); ctx.stroke();
+}
+function offset(q,o,d){ const dx=q[0]-o[0], dy=q[1]-o[1], L=Math.hypot(dx,dy)||1; return [q[0]+dx/L*d, q[1]+dy/L*d]; }
+
+/* ---------- text ---------- */
+function polyStr(c11,c12x2,c22,v1,v2){
+  const terms=[[c11,v1+'²'],[c12x2,v1+v2],[c22,v2+'²']].filter(([c])=>Math.abs(c)>1e-12);
+  if(!terms.length) return '0';
+  return terms.map(([c,v],i)=>{ const a=Math.abs(c), co=Math.abs(a-1)<1e-12?'':fmt(a); const sg=c<0?(i?' − ':MINUS):(i?' + ':''); return sg+co+v; }).join('');
+}
+function status(){
+  const E=S.E, r=norm(S.x), ol=onLine();
+  if(r<1e-9) return {chip:'',cls:'',text:'Drag x away from the origin.'};
+  let chip='', cls='';
+  if(ol===1||ol===2){ chip='x is an eigenvector'; cls='good'; }
+  if(ol===3){ chip='Every direction is an eigenvector'; cls='good'; }
+  const y=ys(), sx=Sx();
+  if(S.mode==='rsr'){
+    const t=S.t, k=Math.round(t), near=Math.abs(t-k)<0.02;
+    let text;
+    if(near && k===0) text=`x = ${fv(S.x)}. Press Play, or step through Qᵀ, then Λ, then Q.`;
+    else if(near && k===1) text=`Step 1: Qᵀx = ${fv(y)}. These are the coordinates of x along the eigenvectors: y₁ = q₁ᵀx and y₂ = q₂ᵀx. Length is unchanged, ${fmt(r)}.`;
+    else if(near && k===2) text=`Step 2: ΛQᵀx = ${V([fmt(E.l1)+'\u2009⋅\u2009'+fp(y[0]), fmt(E.l2)+'\u2009⋅\u2009'+fp(y[1])])} = ${fv([E.l1*y[0],E.l2*y[1]])}. The horizontal axis is stretched by λ₁ = ${fmt(E.l1)} and the vertical axis by λ₂ = ${fmt(E.l2)}.`;
+    else if(near && k===3) text=`Step 3: QΛQᵀx = ${fv(sx)}. This is exactly Sx. The circle through x ${ellipseDesc(r)}.`;
+    else text = t<1 ? 'Step 1 in progress: turning the plane by Qᵀ.' : t<2 ? 'Step 2 in progress: stretching along the axes by Λ.' : 'Step 3 in progress: turning back by Q.';
+    if(ol===1||ol===2) text+=` x is on an eigenvector line: steps 1 and 3 turn it and then turn it back, so the net effect is step 2's stretch by λ${sub(ol)} = ${fmt(ol===1?E.l1:E.l2)}.`;
+    return {chip,cls,text};
+  }
+  let text=`Sx = λ₁(q₁ᵀx)q₁ + λ₂(q₂ᵀx)q₂ = ${fp(E.l1)}·(${fmt(y[0])})·q₁ + ${fp(E.l2)}·(${fmt(y[1])})·q₂ = ${fv(sx)}.`;
+  if(S.onlyOne){ const K=keptInfo(); text+=` Keeping only the λ${sub(K.k)} piece (the larger |λ|) gives ${fv(K.v)}. Its distance from Sx is |λ${sub(K.j)}|·|q${sub(K.j)}ᵀx| = ${fmt(K.err)}, at most |λ${sub(K.j)}|·|x| = ${fmt(Math.abs(K.ld)*norm(S.x))}.`; }
+  return {chip,cls,text};
+}
+function eigKV(){
+  const E=S.E;
+  if(E.repeated) return `<dt>Eigenvalue</dt><dd><span class="num">λ = ${fmt(E.l1)}</span> (twice). Every nonzero vector is an eigenvector. Shown: <span class="m">q</span>₁ = ${V([1,0])}, <span class="m">q</span>₂ = ${V([0,1])}.</dd>`;
+  return `<dt class="ce1">λ₁ = ${fmt(E.l1)}</dt><dd><span class="m">q</span>₁ = <span class="num">${unitStr(E.q1)}</span></dd>
+    <dt class="ce2">λ₂ = ${fmt(E.l2)}</dt><dd><span class="m">q</span>₂ = <span class="num">${unitStr(q2())}</span></dd>
+    <dt>Check</dt><dd><span class="m">q</span>₁ · <span class="m">q</span>₂ = 0 &nbsp;·&nbsp; λ₁ + λ₂ = ${fmt(E.l1+E.l2)} = trace &nbsp;·&nbsp; λ₁λ₂ = ${fmt(E.l1*E.l2)} = det</dd>`;
+}
+function stepRows(){
+  const E=S.E, y=ys(), k=Math.abs(S.t-Math.round(S.t))<0.02?Math.round(S.t):-1;
+  const rows=[['Start','x',S.x],['1','Qᵀx',y],['2','ΛQᵀx',[E.l1*y[0],E.l2*y[1]]],['3','QΛQᵀx = Sx',Sx()]];
+  return rows.map((r,i)=>`<tr class="${i===k?'cur':''}"><td>${r[0]}</td><td style="font-family:var(--serif);font-style:italic;font-size:15px">${r[1]}</td><td>${fv(r[2])}</td></tr>`).join('');
+}
+function quadNote(){
+  const E=S.E, y=ys(), c=dot(S.x,mul(Smat(),S.x));
+  return `Quadratic form: x<sup>T</sup>Sx = <span class="mu">${polyStr(S.a,2*S.b,S.d,'x₁','x₂')}</span> = <span class="mu">${polyStr(E.l1,0,E.l2,'y₁','y₂')}</span>, where y = Q<sup>T</sup>x. At the current x both equal <span class="num">${fmt(c)}</span>.${S.showLevel?' The dashed level curve turns with steps 1 and 3, so in step 1 you see it without a tilt; step 2 does not change it, so Λ<span class="m">Q</span><sup>T</sup><span class="m">x</span> leaves the curve.':''}`;
+}
+function pieces(){
+  const E=S.E, q1=E.q1, qq2=q2();
+  const P1=[[E.l1*q1[0]*q1[0],E.l1*q1[0]*q1[1]],[E.l1*q1[1]*q1[0],E.l1*q1[1]*q1[1]]];
+  const P2=[[E.l2*qq2[0]*qq2[0],E.l2*qq2[0]*qq2[1]],[E.l2*qq2[1]*qq2[0],E.l2*qq2[1]*qq2[1]]];
+  $('pieceMats').innerHTML = `<span class="mname" aria-hidden="true">S</span><span class="op">=</span>${matHTML(Smat())}<span class="op">=</span><span class="ce1">${matHTML(P1)}</span><span class="op">+</span><span class="ce2">${matHTML(P2)}</span>`;
+  $('pieceMats').setAttribute('aria-label',`S, ${spokenM(Smat())}, equals ${fmt(E.l1)} q1 q1 transpose, ${spokenM(P1)}, plus ${fmt(E.l2)} q2 q2 transpose, ${spokenM(P2)}.`);
+  $('pieceMats').setAttribute('role','img');
+  $('pieceNote').innerHTML = `Teal: λ₁<span class="m">q</span>₁<span class="m">q</span>₁<sup>T</sup> with λ₁ = ${fmt(E.l1)}. Purple: λ₂<span class="m">q</span>₂<span class="m">q</span>₂<sup>T</sup> with λ₂ = ${fmt(E.l2)}. Each <span class="m">qq</span><sup>T</sup> is the projection matrix onto one eigenvector line, so each piece has rank one (or is zero, if its λ is 0).`;
+  const y=ys(), sx=Sx();
+  $('sumKV').innerHTML = `<dt>q₁ᵀx, q₂ᵀx</dt><dd class="num">${fmt(y[0])}, ${fmt(y[1])}</dd>
+    <dt class="ce1">λ₁ piece</dt><dd class="num">${fp(E.l1)} · ${fp(y[0])} · q₁ = ${fv([E.l1*y[0]*E.q1[0],E.l1*y[0]*E.q1[1]])}</dd>
+    <dt class="ce2">λ₂ piece</dt><dd class="num">${fp(E.l2)} · ${fp(y[1])} · q₂ = ${fv([E.l2*y[1]*qq2[0],E.l2*y[1]*qq2[1]])}</dd>
+    <dt class="cax">Sx</dt><dd class="num">${fv(sx)}</dd>`;
+}
+function algebra(){
+  const E=S.E, a=S.a, b=S.b, d=S.d, tr=a+d, det=a*d-b*b, disc=(a-d)*(a-d)+4*b*b;
+  let poly='λ²';
+  if(Math.abs(tr)>1e-12) poly+=(tr>0?' − ':' + ')+fmt(Math.abs(tr))+'λ';
+  if(Math.abs(det)>1e-12) poly+=(det>0?' + ':' − ')+fmt(Math.abs(det));
+  let h=`<p>det(<span class="m">S</span> − <span class="m">λI</span>) = <span class="mu">${poly}</span>. Its discriminant is (<span class="m">a</span> − <span class="m">d</span>)² + 4<span class="m">b</span>² = <span class="num">${fmt(disc)}</span>, a sum of squares, so the eigenvalues of a symmetric 2×2 matrix are always real.</p>`;
+  h+=`<p>λ₁ = ${fmt(E.l1)}, λ₂ = ${fmt(E.l2)}.</p>`;
+  if(E.repeated){ h+=`<p>The eigenvalue is repeated and <span class="m">S</span> = ${fmt(E.l1)}<span class="m">I</span>. Any orthonormal pair works as <span class="m">Q</span>, and <span class="m">QΛQ</span><sup>T</sup> = ${fmt(E.l1)}<span class="m">QQ</span><sup>T</sup> = ${fmt(E.l1)}<span class="m">I</span>.</p>`; return h; }
+  const Qm=Q(), back=mm(Qm,mm(Lam(),[[Qm[0][0],Qm[1][0]],[Qm[0][1],Qm[1][1]]]));
+  h+=`<p><span class="m">q</span>₁ = ${unitStr(E.q1)} makes an angle of ${fmt(E.th*180/Math.PI,2)}° with the horizontal axis. <span class="m">q</span>₂ = ${unitStr(q2())} is <span class="m">q</span>₁ turned 90° counterclockwise.</p>`;
+  h+=`<div class="mrow"><span class="mname">Q =</span>${matHTML(Qm)}<span class="mname">Λ =</span>${matHTML(Lam())}</div>`;
+  h+=`<p>Multiplying back: <span class="m">QΛQ</span><sup>T</sup> = ${Mx(back)} = <span class="m">S</span>.</p>`;
+  if(S.preset==='cov') h+=`<p><strong>About signs.</strong> The notes write <span class="m">v</span>₂ = ${V([1,'−2'])}, which is −<span class="m">q</span>₂ here (after dividing by √5). Both are correct; an eigenvector's sign is a choice. Here <span class="m">q</span>₂ is picked so that <span class="m">Q</span> is a rotation, which makes steps 1 and 3 pure turns. With the notes' sign, <span class="m">Q</span> also includes a flip, and the flips in <span class="m">Q</span> and <span class="m">Q</span><sup>T</sup> cancel, so <span class="m">QΛQ</span><sup>T</sup> is the same matrix.</p>`;
+  return h;
+}
+function legend(){
+  const L = S.mode==='rsr'
+    ? [['var(--x)','x (drag it)',''],['var(--ax)','x after each step',''],['var(--e1)','q₁ and its image',''],['var(--e2)','q₂ and its image',''],['var(--muted)','eigenvector lines','d']]
+    : S.onlyOne ? [['var(--x)','x (drag it)',''],['var(--'+(bigK()===1?'e1':'e2')+')','kept piece and its flattened circle',''],['var(--ax)','Sx and the ellipse S makes from the circle',''],['var(--ink)','error','d']]
+    : S.showAdd ? [['var(--x)','x (drag it)',''],['var(--e1)','shadow on q₁',''],['var(--e2)','shadow on q₂',''],['var(--muted)','projections','d']]
+    : [['var(--x)','x (drag it)',''],['var(--e1)','λ₁ piece',''],['var(--e2)','λ₂ piece',''],['var(--ax)','Sx',''],['var(--muted)','projections','d']];
+  $('legend').innerHTML = L.map(([c,t,d])=>`<span style="color:${c}"><i class="sw ${d}"></i><span style="color:var(--muted)">${t}</span></span>`).join('');
+}
+
+function setCheck(id,key,val){ S[key]=val; $(id).checked=val; }
+function moveX(v){ S.x=v; render(); }
+const IDEAS = {
+rsr: [
+  {short:'Special lines', title:'Perpendicular directions where S only stretches',
+   body:()=>{ const E=S.E; if(E.repeated) return `<p>Here <span class="m">S</span> = ${fmt(E.l1)}<span class="m">I</span>: every direction is special, and every vector is simply stretched by ${fmt(E.l1)}.</p>`;
+     return `<p>The dashed lines are the eigenvector lines of <span class="m">S</span>. A vector on the teal line comes out on the same line, ${fmt(E.l1)} times as long; on the purple line, ${fmt(E.l2)} times as long:</p>
+     <p class="callout"><span class="m">Sq</span>₁ = ${fmt(E.l1)}<span class="m">q</span>₁, &nbsp; <span class="m">Sq</span>₂ = ${fmt(E.l2)}<span class="m">q</span>₂, &nbsp; and the two lines are perpendicular.</p>
+     <p>Any other vector is part teal direction, part purple direction. The two parts are stretched by different amounts, so <span class="m">Sx</span> ends up pointing somewhere new. That is the only reason <span class="m">S</span> turns vectors at all.</p>
+     <p>In higher dimensions the picture is the same with more lines: a symmetric <span class="m">n</span>×<span class="m">n</span> matrix has <span class="m">n</span> mutually perpendicular eigenvector directions, one per eigenvalue counted with repeats. If an eigenvalue repeats, a whole plane (or larger subspace) of directions is stretched by the same amount, and any perpendicular set of directions in it will do (notes §6).</p>`; },
+   show:()=>{ setTab(0); stopAnim(); S.t=3; const r=norm(S.x)||1; moveX([r*S.E.q1[0], r*S.E.q1[1]]); }},
+  {short:'Step 1: Qᵀ', title:'Step 1, Qᵀ: look at x along the special directions',
+   body:()=>{ const y=ys(); return `<p><span class="mu">Q<sup>T</sup></span> is a rotation: it changes no lengths and no angles. It turns the whole picture so that <span class="m">q</span>₁ lies on the horizontal axis and <span class="m">q</span>₂ on the vertical axis.</p>
+     <p class="callout">New coordinates of <span class="m">x</span>: <span class="m">y</span>₁ = <span class="m">q</span>₁<sup>T</sup><span class="m">x</span> = <span class="num">${fmt(y[0])}</span>, &nbsp; <span class="m">y</span>₂ = <span class="m">q</span>₂<sup>T</sup><span class="m">x</span> = <span class="num">${fmt(y[1])}</span></p>
+     <p>These say how far <span class="m">x</span> reaches along each special direction. Nothing has happened to <span class="m">x</span> yet; we have only changed our point of view.</p>`; },
+   show:()=>{ setTab(0); stopAnim(); S.t=0; render(); goTo(1); }},
+  {short:'Step 2: Λ', title:'Step 2, Λ: two separate stretches',
+   body:()=>{ const E=S.E, y=ys(); return `<p>Seen from the special directions, <span class="m">S</span> does the simplest thing possible: it multiplies the first coordinate by λ₁ and the second by λ₂. The two coordinates do not mix.</p>
+     <p class="callout"><span class="m">Q</span><sup>T</sup><span class="m">x</span> = ${V(y)} &nbsp;→&nbsp; <span class="mu">Λ</span><span class="m">Q</span><sup>T</sup><span class="m">x</span> = ${V([fmt(E.l1)+'\u2009⋅\u2009'+fp(y[0]), fmt(E.l2)+'\u2009⋅\u2009'+fp(y[1])])} = ${fv([E.l1*y[0],E.l2*y[1]])}</p>
+     <p>Turn on <em>Compare a square</em> in the panel: the teal square stretches into a rectangle with no slant. A negative λ flips that side over; λ = 0 flattens it.</p>`; },
+   show:()=>{ setTab(0); setCheck('showSquares','showSquares',true); stopAnim(); S.t=1; render(); goTo(2); }},
+  {short:'Step 3: Q', title:'Step 3, Q: turn back',
+   body:()=>{ const E=S.E, r=norm(S.x); return `<p><span class="m">Q</span> undoes the turn from step 1, so we are back in the original coordinates. All together:</p>
+     <p class="callout"><span class="m">Sx</span> = <span class="m">Q</span>(<span class="mu">Λ</span>(<span class="m">Q</span><sup>T</sup><span class="m">x</span>)) = <span class="num">${fv(Sx())}</span></p>
+     <p>The circle through <span class="m">x</span> ${ellipseDesc(r)}: the half-lengths are |λ₁|·|<span class="m">x</span>| and |λ₂|·|<span class="m">x</span>|, along the eigenvector lines. Reading <span class="mu">QΛQ<sup>T</sup></span> right to left: rotate, stretch, rotate back.</p>`; },
+   show:()=>{ setTab(0); stopAnim(); S.t=0; render(); $('play').click(); }},
+  {short:'Why perpendicular', title:'Why perpendicular eigenvectors make this work',
+   body:()=>`<p>In Week 3, any diagonalizable matrix was written <span class="mu">A = XΛX<sup>−1</sup></span>: also "change coordinates, stretch, change back". But when the eigenvectors are not perpendicular, <span class="mu">X<sup>−1</sup></span> is a slanted change of coordinates that distorts lengths and angles, and the picture is hard to read.</p>
+     <p>For a symmetric matrix the eigenvectors are perpendicular, so <span class="mu">X<sup>−1</sup></span> can be <span class="mu">Q<sup>T</sup></span>, a pure rotation. Then the eigen-directions are exactly the axes of the ellipse, and its half-lengths are |λ₁| and |λ₂| times the radius of the circle.</p>
+     <p class="callout">Compare the two squares while the steps play: the teal square, on the eigenvector lines, only stretches. The grey square, on the ordinary axes, comes out slanted, because the axes are not special directions for <span class="m">S</span> (unless <span class="m">S</span> is already diagonal).</p>`,
+   show:()=>{ setTab(0); setCheck('showSquares','showSquares',true); stopAnim(); S.t=0; render(); $('play').click(); }},
+  {short:'Why it matters', title:'Why the spectral theorem matters',
+   body:()=>`<p>Symmetric matrices are everywhere in data science: covariance matrices, Hessians (second derivatives) of functions we minimize, and graph Laplacians are all symmetric. The theorem says each one is nothing more than stretches along perpendicular axes.</p>
+     <p>For a <strong>covariance matrix</strong>, those axes are the directions of greatest and least spread of the data (see the Covariance Explorer), which leads to PCA in Week 8.</p>
+     <p>For a <strong>quadratic form</strong> <span class="m">x</span><sup>T</sup><span class="m">Sx</span>, switching to <span class="m">y</span> = <span class="m">Q</span><sup>T</sup><span class="m">x</span> removes the cross term: <span class="mu">${polyStr(S.a,2*S.b,S.d,'x₁','x₂')}</span> becomes <span class="mu">${polyStr(S.E.l1,0,S.E.l2,'y₁','y₂')}</span>. Turn on the level curve and go to step 1: its axes now line up with the coordinate axes. The signs of the eigenvalues tell you whether it is an ellipse or a hyperbola, which is how we will tell a minimum from a saddle point (Weeks 5 and 10).</p>`,
+   show:()=>{ setTab(0); setCheck('showLevel','showLevel',true); stopAnim(); S.t=0; render(); goTo(1); }},
+],
+sum: [
+  {short:'Shadows', title:'The two shadows of x add back up to x',
+   body:()=>{ const y=ys(); return `<p>Drop <span class="m">x</span> straight onto each eigenvector line. The landing points are the shadows (projections) of <span class="m">x</span>: <span class="m">q</span>₁(<span class="m">q</span>₁<sup>T</sup><span class="m">x</span>) on the teal line and <span class="m">q</span>₂(<span class="m">q</span>₂<sup>T</sup><span class="m">x</span>) on the purple line.</p>
+     <p>Because the lines are perpendicular, the two shadows are the sides of a rectangle whose diagonal is <span class="m">x</span>. So they add back up to <span class="m">x</span> exactly:</p>
+     <p class="callout"><span class="m">x</span> = ${fp(y[0])}·<span class="m">q</span>₁ + ${fp(y[1])}·<span class="m">q</span>₂, &nbsp; or in matrix form &nbsp; <span class="m">I</span> = <span class="m">q</span>₁<span class="m">q</span>₁<sup>T</sup> + <span class="m">q</span>₂<span class="m">q</span>₂<sup>T</sup></p>`; },
+   show:()=>{ setTab(1); setCheck('showAdd','showAdd',true); setCheck('showDrops','showDrops',true); setCheck('onlyOne','onlyOne',false); render(); }},
+  {short:'Stretch & add', title:'Stretch each shadow, then add',
+   body:()=>{ const E=S.E, y=ys(); return `<p><span class="m">S</span> treats the two shadows separately. It multiplies the teal shadow by λ₁ = ${fmt(E.l1)} and the purple shadow by λ₂ = ${fmt(E.l2)}, then adds. The teal and purple arrows, tip to tail, land on <span class="m">Sx</span>.</p>
+     <p class="callout"><span class="m">Sx</span> = ${fp(E.l1)}·(${fmt(y[0])})<span class="m">q</span>₁ + ${fp(E.l2)}·(${fmt(y[1])})<span class="m">q</span>₂ = <span class="num">${fv(Sx())}</span></p>
+     <p>Since this works for every <span class="m">x</span>, it is a statement about matrices: <span class="mu">S = λ₁q₁q₁<sup>T</sup> + λ₂q₂q₂<sup>T</sup></span>. It is the same fact as <span class="mu">QΛQ<sup>T</sup></span>, written as a sum.</p>`; },
+   show:()=>{ setTab(1); setCheck('showAdd','showAdd',false); setCheck('showDrops','showDrops',true); setCheck('onlyOne','onlyOne',false); render(); }},
+  {short:'Rank one', title:'Each piece is the simplest kind of matrix',
+   body:()=>`<p><span class="m">q</span>₁<span class="m">q</span>₁<sup>T</sup> takes any vector to its shadow on the teal line. So every output of λ₁<span class="m">q</span>₁<span class="m">q</span>₁<sup>T</sup> lies on one line: the matrix has rank one. You can see it in the numbers above: each row of the teal matrix is a multiple of the other.</p>
+     <p>Turn on <em>Keep only the largest piece</em> and drag <span class="m">x</span> anywhere: the kept arrow always stays on one line. The spectral theorem builds every symmetric matrix out of such simple pieces, one per eigenvalue, along perpendicular lines.</p>`,
+   show:()=>{ setTab(1); setCheck('onlyOne','onlyOne',true); setCheck('showAdd','showAdd',false); render(); }},
+  {short:'Big pieces', title:'The largest piece carries most of S',
+   body:()=>{ const E=S.E, K=keptInfo(), r=norm(S.x);
+     return `<p>The pieces are weighted by their eigenvalues. Keep only the piece with the largest |λ| (here λ${sub(K.k)} = ${fmt(K.l)}) and drop the other. For one vector the error is the dropped piece, of length |λ${sub(K.j)}|·|<span class="m">q</span>${sub(K.j)}<sup>T</sup><span class="m">x</span>| (the dotted segment). That depends on where <span class="m">x</span> points: it is 0 on the ${K.k===1?'teal':'purple'} line and largest on the ${K.k===1?'purple':'teal'} line.</p>
+     <p>To judge the approximation as a whole, look at every vector on the circle through <span class="m">x</span> at once. <span class="m">S</span> turns the circle into the orange ellipse. The kept piece flattens it onto the shaded segment. The two shapes are never more than |λ${sub(K.j)}|·|<span class="m">x</span>| apart, while the ellipse reaches out to |λ${sub(K.k)}|·|<span class="m">x</span>|.</p>
+     <p class="callout">Largest possible error: |λ${sub(K.j)}|·|<span class="m">x</span>| = <span class="num">${fmt(Math.abs(K.ld)*r)}</span>, compared with |λ${sub(K.k)}|·|<span class="m">x</span>| = <span class="num">${fmt(Math.abs(K.l)*r)}</span>. Error for the current <span class="m">x</span>: <span class="num">${fmt(K.err)}</span>.</p>
+     <p>A big data matrix can have thousands of eigenvalues, but often only a few are large. Keeping only the pieces with the largest |λ| gives a small, accurate summary of the whole matrix. That is the idea behind low-rank approximation (Week 7) and PCA (Week 8).</p>`; },
+   show:()=>{ setTab(1); setCheck('onlyOne','onlyOne',true); setCheck('showAdd','showAdd',false); const K=keptInfo(), r=norm(S.x)||1, a=Math.atan2(K.q[1],K.q[0])+25*Math.PI/180; moveX([r*Math.cos(a), r*Math.sin(a)]); }},
+]};
+const guide = makeGuide($('guide'), ()=>IDEAS[S.mode], ()=>S.mode);
+
+const live=makeLive($('live'));
+function render(){
+  if(!S.E) return;
+  const st=status();
+  $('statusChip').textContent=st.chip; $('statusChip').className='chip '+st.cls; $('statusChip').hidden=!st.chip;
+  $('statusText').innerHTML=st.text; live((st.chip?st.chip+'. ':'')+plainOf(st.text));
+  $('eigKV').innerHTML=eigKV();
+  const k=Math.abs(S.t-Math.round(S.t))<0.02?Math.round(S.t):-1;
+  stepBtns.forEach((b,i)=>b.setAttribute('aria-pressed',i===k));
+  if(document.activeElement!==$('tSlide')) $('tSlide').value=Math.round(S.t*100);
+  { const k=Math.round(S.t); $('tVal').textContent = Math.abs(S.t-k)<0.02 ? (k?'after step '+k:'start') : 'during step '+Math.ceil(S.t); }
+  $('stepRows').innerHTML=stepRows();
+  $('quadNote').innerHTML=quadNote();
+  if(S.mode==='sum') pieces();
+  $('algebra').innerHTML=algebra();
+  legend(); guide.update(); draw();
+}
+new ResizeObserver(()=>draw()).observe(cv);
+onThemeChange(draw);
+loadPreset('cov');
+})();
+
+</script>
+</body>
+</html>

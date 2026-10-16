@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Energy Landscape Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a square energy map on the left (the landscape is the subject), a narrow instrument column on the right; stacks on phones. */
+:root {
+  --bg: #F7F8FA; --surface: #FFFFFF; --ink: #18202C; --muted: #56606F; --rule: #D5DBE4;
+  --blue: #1D5CC0; --orange: #B85607; --teal: #0A7A69; --purple: #7443B5;
+  --chip-pd: #DDEBDF; --chip-psd: #E6E2F4; --chip-ind: #F6E3D3;
+  --font-body: "Source Sans 3", "Source Sans Pro", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161D; --surface: #1A2029; --ink: #E6EAF0; --muted: #A0A9B6; --rule: #2E3744;
+  --blue: #6E9EF0; --orange: #E8954E; --teal: #3BC2A9; --purple: #B28CF0;
+  --chip-pd: #1E3328; --chip-psd: #2B2640; --chip-ind: #3A2A1C; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #12161D; --surface: #1A2029; --ink: #E6EAF0; --muted: #A0A9B6; --rule: #2E3744;
+  --blue: #6E9EF0; --orange: #E8954E; --teal: #3BC2A9; --purple: #B28CF0;
+  --chip-pd: #1E3328; --chip-psd: #2B2640; --chip-ind: #3A2A1C; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+.wrap { max-width: 1060px; margin: 0 auto; display: grid; gap: 20px; }
+header h1 { font-size: 1.75rem; font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 68ch; }
+.math { font-family: var(--font-mono); font-size: 0.92em; }
+.views { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 760px) { .views { grid-template-columns: 1fr; } }
+.view h2 { font-size: 0.98rem; color: var(--ink); margin: 0 0 6px; font-weight: 600; }
+.viewbar { display: flex; justify-content: space-between; align-items: center; gap: 4px 8px; flex-wrap: wrap; min-height: 2.4rem; margin-bottom: 4px; }
+.hint { font-size: 0.85rem; color: var(--muted); }
+.panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 980px) { .panel { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .panel { grid-template-columns: 1fr; } }
+#mincard { grid-column: 1 / -1; }
+#c3d { cursor: grab; } #c3d:active { cursor: grabbing; }
+
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--rule); margin-bottom: 10px; }
+.tabs button { font: inherit; font-weight: 600; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted);
+  padding: 6px 12px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--blue); }
+.mapbox { position: relative; width: 100%; aspect-ratio: 1 / 1; max-width: 100%; }
+.mapbox canvas { position: absolute; inset: 0; width: 100%; height: 100%; border: 1px solid var(--rule); border-radius: 2px; touch-action: none; }
+#overlay { cursor: crosshair; }
+#overlay:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 12px 14px; }
+.card h2 { font-size: 0.95rem; color: var(--ink); margin: 0 0 8px; font-weight: 700; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.btn { font: inherit; font-size: 0.9rem; padding: 4px 10px; border: 1px solid var(--rule); background: var(--bg); color: var(--ink); border-radius: 3px; cursor: pointer; }
+.btn:hover { border-color: var(--blue); }
+.btn[aria-pressed="true"] { border-color: var(--blue); background: var(--surface); box-shadow: inset 0 0 0 1px var(--blue); }
+.btn:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outline-offset: 1px; }
+.btn.primary { background: var(--blue); color: var(--surface); border-color: var(--blue); }
+.matrixrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.matrix { display: inline-grid; grid-template-columns: auto auto; gap: 0 14px; font-family: var(--font-mono); font-size: 1rem;
+  padding: 2px 10px; border-left: 2px solid var(--ink); border-right: 2px solid var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
+.sliders { display: grid; gap: 6px; flex: 1; min-width: 180px; }
+.sl { display: grid; grid-template-columns: 1.6rem 1fr 3.4rem; align-items: center; gap: 8px; font-size: 0.9rem; }
+.sl label { font-family: var(--font-mono); }
+.sl output { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--blue); }
+
+table.tests { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+table.tests th { text-align: left; font-weight: 400; color: var(--muted); padding: 3px 8px 3px 0; }
+table.tests td { font-family: var(--font-mono); text-align: right; padding: 3px 0; font-variant-numeric: tabular-nums; }
+table.tests tr + tr th, table.tests tr + tr td { border-top: 1px solid var(--rule); }
+.chip { display: inline-block; font-weight: 700; padding: 3px 10px; border-radius: 999px; font-size: 0.95rem; margin-bottom: 8px; }
+.chip.pd { background: var(--chip-pd); color: var(--teal); }
+.chip.psd { background: var(--chip-psd); color: var(--purple); }
+.chip.ind { background: var(--chip-ind); color: var(--orange); }
+.note { font-size: 0.88rem; color: var(--muted); margin: 6px 0 0; }
+.readout { font-family: var(--font-mono); font-size: 0.9rem; line-height: 1.6; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.readout .pos { color: var(--blue); } .readout .neg { color: var(--orange); }
+.gdrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.warn { color: var(--orange); font-weight: 600; }
+.try { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 14px 18px; }
+.try h2 { font-size: 1.05rem; margin: 0 0 6px; }
+.try ol { margin: 0; padding-left: 1.3rem; display: grid; gap: 6px; max-width: 80ch; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <h1>Energy Landscape Explorer</h1>
+    <p>Pick a symmetric matrix <span class="math">S</span> and see its energy <span class="math">xᵀSx</span> as a surface over the plane: a bowl, a trough or a saddle. The right-hand picture is the same surface seen from straight above, where each curve joins points at the same height, like a contour map. Matches Sections 2, 3 and 5 of the Week 5 Notes.</p>
+  </header>
+
+  <div class="tabs" role="group" aria-label="What the pictures show">
+    <button id="tab-energy" aria-pressed="true">Energy xᵀSx</button>
+    <button id="tab-min" aria-pressed="false">Minimize f</button>
+  </div>
+
+  <div class="views">
+    <section class="view" aria-labelledby="h3d">
+      <div class="viewbar"><h2 id="h3d">The surface z = <span id="zname">xᵀSx</span></h2>
+        <span class="hint">Drag to turn. <button class="btn" id="resetView">Reset view</button></span></div>
+      <div class="mapbox" id="box3d">
+        <canvas id="c3d" tabindex="0" role="img" aria-label="3D surface. Arrow keys turn the view."></canvas>
+      </div>
+      <div class="legend" id="legend3d"></div>
+    </section>
+    <section class="view" aria-labelledby="h2d">
+      <div class="viewbar"><h2 id="h2d">Seen from above: level curves</h2>
+        <span class="hint">Drag the probe.</span></div>
+      <div class="mapbox" id="mapbox">
+        <canvas id="base" aria-hidden="true"></canvas>
+        <canvas id="overlay" tabindex="0" role="img" aria-label="Level-curve map. Use arrow keys to move the probe vector."></canvas>
+      </div>
+      <div class="legend" id="legend"></div>
+    </section>
+  </div>
+
+  <div class="panel">
+      <div class="card">
+        <h2>Matrix S</h2>
+        <div class="presets" role="group" aria-label="Example matrices">
+          <button class="btn" data-preset="C">C (bowl)</button>
+          <button class="btn" data-preset="T">T (trough)</button>
+          <button class="btn" data-preset="K">K (saddle)</button>
+          <button class="btn" data-preset="I">I</button>
+          <button class="btn" data-preset="N">−C</button>
+        </div>
+        <div class="matrixrow">
+          <div class="matrix" id="matrix" aria-label="Matrix S"></div>
+          <div class="sliders">
+            <div class="sl"><label for="sa">a</label><input type="range" id="sa" min="-3" max="6" step="0.1"><output id="oa" for="sa"></output></div>
+            <div class="sl"><label for="sb">b</label><input type="range" id="sb" min="-4" max="4" step="0.1"><output id="ob" for="sb"></output></div>
+            <div class="sl"><label for="sc">c</label><input type="range" id="sc" min="-3" max="6" step="0.1"><output id="oc" for="sc"></output></div>
+          </div>
+        </div>
+        <p class="note">S = [[a, b], [b, c]]. The off-diagonal entry b appears in both corners, so S is always symmetric.</p>
+      </div>
+
+      <div class="card" id="testsCard">
+        <h2>Tests (Notes, Section 3)</h2>
+        <div id="chip" class="chip"></div>
+        <table class="tests">
+          <tr><th scope="row">Eigenvalues λ₁, λ₂</th><td id="t-eig"></td></tr>
+          <tr><th scope="row">Pivots a, det/a</th><td id="t-piv"></td></tr>
+          <tr><th scope="row">2×2 test: a, det = ac − b²</th><td id="t-det"></td></tr>
+        </table>
+        <p class="note" id="t-why"></p>
+      </div>
+
+      <div class="card">
+        <h2 id="probeTitle">Probe vector x</h2>
+        <p class="note" id="probeNote" style="margin:0 0 6px"></p>
+        <div class="readout" id="probe"></div>
+      </div>
+
+      <div class="card" id="mincard" hidden>
+        <h2>Minimize f(x) = ½xᵀSx − bᵀx</h2>
+        <div class="sliders">
+          <div class="sl"><label for="sb1">b₁</label><input type="range" id="sb1" min="-8" max="8" step="0.5"><output id="ob1" for="sb1"></output></div>
+          <div class="sl"><label for="sb2">b₂</label><input type="range" id="sb2" min="-8" max="8" step="0.5"><output id="ob2" for="sb2"></output></div>
+          <div class="sl"><label for="seta">η</label><input type="range" id="seta" min="0.02" max="0.5" step="0.02"><output id="oeta" for="seta"></output></div>
+        </div>
+        <div class="readout" id="crit" style="margin-top:8px"></div>
+        <div class="gdrow">
+          <button class="btn primary" id="gdStep">Take one step</button>
+          <button class="btn" id="gdRun">Run 20 steps</button>
+          <button class="btn" id="gdReset">Clear path</button>
+        </div>
+        <div class="readout" id="gdOut" style="margin-top:8px" aria-live="polite"></div>
+        <p class="note">Each step is x ← x − η(Sx − b). It starts from the probe; drag the probe to change the start.</p>
+      </div>
+  </div>
+
+  <section class="try">
+    <h2>What to try</h2>
+    <ol>
+      <li>Load <strong>C</strong> and turn the surface until you can see it is a bowl. Then drag the probe in a full circle in the top view. The energy stays positive in every direction, and the readout shows it as λ₁y₁² + λ₂y₂² with both weights positive.</li>
+      <li>Load <strong>K</strong>. Find a direction where the energy is negative. Which eigenvector line is it on, and what is that eigenvalue? Compare the two coloured slices on the surface: at distance t from the origin along qᵢ the height is λᵢt², so one opens up and one opens down.</li>
+      <li>Load <strong>T</strong>. Find the line where the energy is zero, and compare it with the null-space direction (2, −1) from the notes.</li>
+      <li>Start from <strong>C</strong> and slowly move b from 2 up to 3.5. Watch det = 10 − b² and λ₂ shrink: the bowl gets flatter along q₂, and between b = 3.1 and b = 3.2 det turns negative and the bowl becomes a saddle. (Exactly at b = √10 ≈ 3.16 it would be a trough.)</li>
+      <li>Switch to <strong>Minimize f</strong> with C and b = (7, 4). Drag the probe to a corner and run gradient descent with η = 0.2, then η = 0.34. The safe limit 2/λ₁ = 1/3 is shown in the panel.</li>
+    </ol>
+  </section>
+  <div class="sr" id="live" aria-live="polite"></div>
+</div>
+
+<script>
+(() => {
+  const PRESETS = { C: [5, 2, 2], T: [1, 2, 4], K: [1, 2, 1], I: [1, 0, 1], N: [-5, -2, -2] };
+  const st = { a: 5, b: 2, c: 2, mode: "energy", x: [1, 0.5], b1: 7, b2: 4, eta: 0.2, path: [] };
+  const $ = id => document.getElementById(id);
+  const base = $("base"), over = $("overlay"), box = $("mapbox"), c3d = $("c3d"), box3d = $("box3d");
+  const VIEW0 = { th: -0.62, ph: 0.55 };
+  const view = { ...VIEW0 };
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const fmt = (v, d = 3) => {
+    if (!isFinite(v)) return v > 0 ? "∞" : "−∞";
+    if (Math.abs(v) < 0.5 * Math.pow(10, -d)) v = 0;
+    let s = v.toFixed(d).replace(/\.?0+$/, "");
+    if (s === "-0") s = "0";
+    return s.replace("-", "−");
+  };
+  const round1 = v => Math.round(v * 10) / 10;
+
+  function eig(a, b, c) {
+    const m = (a + c) / 2, r = Math.hypot((a - c) / 2, b);
+    const l1 = m + r, l2 = m - r;
+    let q1, q2;
+    if (Math.abs(b) > 1e-12) {
+      q1 = [b, l1 - a]; q2 = [b, l2 - a];
+    } else if (a >= c) { q1 = [1, 0]; q2 = [0, 1]; } else { q1 = [0, 1]; q2 = [1, 0]; }
+    const n1 = Math.hypot(...q1), n2 = Math.hypot(...q2);
+    q1 = [q1[0] / n1, q1[1] / n1]; q2 = [q2[0] / n2, q2[1] / n2];
+    // match the notes' signs where possible: first nonzero entry of q1 positive
+    if (q1[0] < 0 || (q1[0] === 0 && q1[1] < 0)) q1 = [-q1[0], -q1[1]];
+    if (q2[0] < 0 || (q2[0] === 0 && q2[1] < 0)) q2 = [-q2[0], -q2[1]];
+    return { l1, l2, q1, q2 };
+  }
+  const TOL = 1e-9;
+  function classify(l1, l2) {
+    if (l2 > TOL) return { cls: "pd", text: "Positive definite", why: "Both eigenvalues are positive, so the energy is positive for every x ≠ 0. The landscape is a bowl." };
+    if (l2 > -TOL && l1 > TOL) return { cls: "psd", text: "Positive semidefinite (singular)", why: "One eigenvalue is 0: the energy is never negative but is zero along a whole line, the null space. The landscape is a trough." };
+    if (l1 > TOL && l2 < -TOL) return { cls: "ind", text: "Indefinite", why: "One eigenvalue is positive and one is negative, so the energy takes both signs. The landscape is a saddle." };
+    if (Math.abs(l1) <= TOL && Math.abs(l2) <= TOL) return { cls: "psd", text: "Zero matrix", why: "Every energy is 0." };
+    if (l1 < -TOL) return { cls: "ind", text: "Negative definite", why: "Both eigenvalues are negative, so −S is positive definite. The landscape is an upside-down bowl." };
+    return { cls: "ind", text: "Negative semidefinite (singular)", why: "One eigenvalue is 0 and the other is negative: −S is positive semidefinite." };
+  }
+
+  const energy = (x, y) => st.a * x * x + 2 * st.b * x * y + st.c * y * y;
+  const fval = (x, y) => 0.5 * energy(x, y) - st.b1 * x - st.b2 * y;
+  const value = (x, y) => st.mode === "energy" ? energy(x, y) : fval(x, y);
+  const win = () => st.mode === "energy" ? { x0: -3, x1: 3, y0: -3, y1: 3 } : { x0: -2.5, x1: 4.5, y0: -2.5, y1: 4.5 };
+
+  function critical() {
+    const det = st.a * st.c - st.b * st.b;
+    if (Math.abs(det) > 1e-9) {
+      const x = (st.c * st.b1 - st.b * st.b2) / det, y = (st.a * st.b2 - st.b * st.b1) / det;
+      return { kind: "point", x, y };
+    }
+    // singular: consistent if b is in the column space of S
+    const e = eig(st.a, st.b, st.c);
+    const nz = Math.abs(e.l1) > TOL ? e.q1 : e.q2; // column-space direction
+    const bn = [st.b1, st.b2];
+    const along = bn[0] * nz[0] + bn[1] * nz[1];
+    const resid = Math.hypot(bn[0] - along * nz[0], bn[1] - along * nz[1]);
+    const lam = Math.abs(e.l1) > TOL ? e.l1 : e.l2;
+    if (Math.abs(lam) <= TOL) return { kind: "none" };
+    if (resid < 1e-9) return { kind: "line", x: along / lam * nz[0], y: along / lam * nz[1], dir: Math.abs(e.l1) > TOL ? e.q2 : e.q1 };
+    return { kind: "none" };
+  }
+
+  function colors() {
+    const cs = getComputedStyle(document.documentElement);
+    const g = n => cs.getPropertyValue(n).trim();
+    return { bg: g("--bg"), surface: g("--surface"), ink: g("--ink"), muted: g("--muted"), rule: g("--rule"),
+             blue: g("--blue"), orange: g("--orange"), teal: g("--teal"), purple: g("--purple") };
+  }
+  function rgb(hex) { const h = hex.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); }
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
+    return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+  }
+
+  let W = 0, W3 = 0, DPR = 1;
+  function sizeCanvases() {
+    const r = box.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(200, Math.round(r.width));
+    for (const c of [base, over]) { c.width = Math.round(W * DPR); c.height = Math.round(W * DPR); }
+    W3 = Math.max(200, Math.round(box3d.getBoundingClientRect().width));
+    c3d.width = Math.round(W3 * DPR); c3d.height = Math.round(W3 * DPR);
+  }
+  const toPx = (x, y) => { const w = win(); return [ (x - w.x0) / (w.x1 - w.x0) * W, (w.y1 - y) / (w.y1 - w.y0) * W ]; };
+  const toXY = (px, py) => { const w = win(); return [ w.x0 + px / W * (w.x1 - w.x0), w.y1 - py / W * (w.y1 - w.y0) ]; };
+
+  function refValue() {
+    if (st.mode === "energy") return 0;
+    const cr = critical();
+    if (cr.kind === "point" || cr.kind === "line") return fval(cr.x, cr.y);
+    const w = win(); return fval((w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2);
+  }
+
+  function drawBase() {
+    const ctx = base.getContext("2d"), N = base.width, col = colors();
+    const bg = rgb(col.bg), bl = rgb(col.blue), or = rgb(col.orange), ink = rgb(col.ink);
+    const w = win(), ref = refValue();
+    // value grid
+    const vals = new Float32Array(N * N);
+    let vmax = 0;
+    for (let j = 0; j < N; j++) {
+      const y = w.y1 - (j + 0.5) / N * (w.y1 - w.y0);
+      for (let i = 0; i < N; i++) {
+        const x = w.x0 + (i + 0.5) / N * (w.x1 - w.x0);
+        const v = value(x, y) - ref; vals[j * N + i] = v; const av = Math.abs(v); if (av > vmax) vmax = av;
+      }
+    }
+    if (vmax < 1e-9) vmax = 1;
+    const step = niceStep(vmax / 7), scale = vmax * 0.6;
+    const img = ctx.createImageData(N, N), d = img.data, s = Math.max(1, Math.round(DPR));
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const k = j * N + i, v = vals[k];
+      const t = Math.tanh(Math.abs(v) / scale) * 0.62, tgt = v >= 0 ? bl : or;
+      let r = bg[0] + (tgt[0] - bg[0]) * t, g = bg[1] + (tgt[1] - bg[1]) * t, b = bg[2] + (tgt[2] - bg[2]) * t;
+      const bi = Math.floor(v / step);
+      const right = i + s < N ? Math.floor(vals[k + s] / step) : bi;
+      const down = j + s < N ? Math.floor(vals[k + s * N] / step) : bi;
+      if (right !== bi || down !== bi) {
+        const zero = (bi < 0) !== ((right !== bi ? right : down) < 0);
+        const a = zero ? 0.85 : 0.32;
+        r += (ink[0] - r) * a; g += (ink[1] - g) * a; b += (ink[2] - b) * a;
+      }
+      d[4 * k] = r; d[4 * k + 1] = g; d[4 * k + 2] = b; d[4 * k + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    // grid ticks and axes
+    ctx.save(); ctx.scale(DPR, DPR);
+    ctx.font = `12px ${getComputedStyle(document.body).getPropertyValue("--font-mono") || "monospace"}`;
+    ctx.fillStyle = col.muted; ctx.strokeStyle = col.muted; ctx.lineWidth = 1;
+    const [ox, oy] = toPx(0, 0);
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(0, oy); ctx.lineTo(W, oy); ctx.moveTo(ox, 0); ctx.lineTo(ox, W); ctx.stroke();
+    ctx.globalAlpha = 1;
+    for (let t = Math.ceil(w.x0); t <= Math.floor(w.x1); t++) {
+      if (t === 0 || t <= w.x0 || t >= w.x1) continue;
+      const [px] = toPx(t, 0); ctx.beginPath(); ctx.moveTo(px, oy - 3); ctx.lineTo(px, oy + 3); ctx.stroke();
+      ctx.fillText(fmt(t), px - 4, oy + 15);
+    }
+    for (let t = Math.ceil(w.y0); t <= Math.floor(w.y1); t++) {
+      if (t === 0 || t <= w.y0 || t >= w.y1) continue;
+      const [, py] = toPx(0, t); ctx.beginPath(); ctx.moveTo(ox - 3, py); ctx.lineTo(ox + 3, py); ctx.stroke();
+      ctx.fillText(fmt(t), ox + 6, py + 4);
+    }
+    ctx.fillText("x₁", W - 18, oy - 6); ctx.fillText("x₂", ox - 20, 14);
+    // eigen-direction lines through the center (origin, or the critical point in minimize mode)
+    const e = eig(st.a, st.b, st.c), cr = critical();
+    let cx = 0, cy = 0;
+    if (st.mode === "min" && (cr.kind === "point" || cr.kind === "line")) { cx = cr.x; cy = cr.y; }
+    const L = 20;
+    [[e.q1, col.teal, "q₁"], [e.q2, col.purple, "q₂"]].forEach(([q, c, lab]) => {
+      const [p0x, p0y] = toPx(cx - L * q[0], cy - L * q[1]), [p1x, p1y] = toPx(cx + L * q[0], cy + L * q[1]);
+      ctx.strokeStyle = c; ctx.lineWidth = 1.6; ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.moveTo(p0x, p0y); ctx.lineTo(p1x, p1y); ctx.stroke(); ctx.setLineDash([]);
+      // label near the edge of the window, inside it
+      for (let tt = 4.2; tt > 0.5; tt -= 0.1) {
+        const [lx, ly] = toPx(cx + tt * q[0], cy + tt * q[1]);
+        if (lx > 14 && lx < W - 26 && ly > 18 && ly < W - 10) { ctx.fillStyle = c; ctx.font = "600 13px " + getComputedStyle(document.body).fontFamily; ctx.fillText(lab, lx + 5, ly - 5); break; }
+      }
+    });
+    if (st.mode === "min" && cr.kind === "point") {
+      const [px, py] = toPx(cr.x, cr.y); ctx.fillStyle = col.ink;
+      ctx.beginPath(); ctx.moveTo(px, py - 7); ctx.lineTo(px + 6, py + 4); ctx.lineTo(px - 6, py + 4); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawOverlay() {
+    const ctx = over.getContext("2d"), col = colors();
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, over.width, over.height); ctx.scale(DPR, DPR);
+    // gradient descent path
+    if (st.mode === "min" && st.path.length > 1) {
+      ctx.strokeStyle = col.ink; ctx.lineWidth = 1.6; ctx.beginPath();
+      st.path.forEach((p, i) => { const [px, py] = toPx(p[0], p[1]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+      ctx.stroke(); ctx.fillStyle = col.ink;
+      st.path.forEach(p => { const [px, py] = toPx(p[0], p[1]); if (px > -10 && px < W + 10 && py > -10 && py < W + 10) { ctx.beginPath(); ctx.arc(px, py, 2.6, 0, 7); ctx.fill(); } });
+    }
+    const [x, y] = st.x, [px, py] = toPx(x, y);
+    if (st.mode === "energy") {
+      const [ox, oy] = toPx(0, 0);
+      const E = energy(x, y), c = E >= 0 ? col.blue : col.orange;
+      arrow(ctx, ox, oy, px, py, c, 2.4);
+    } else {
+      // downhill direction −∇f at the probe
+      const g = [st.a * x + st.b * y - st.b1, st.b * x + st.c * y - st.b2], gn = Math.hypot(...g);
+      if (gn > 1e-9) { const len = 0.7; const [qx, qy] = toPx(x - len * g[0] / gn, y - len * g[1] / gn); arrow(ctx, px, py, qx, qy, col.orange, 2); }
+    }
+    ctx.fillStyle = col.surface; ctx.strokeStyle = col.ink; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(px, py, 7, 0, 7); ctx.fill(); ctx.stroke();
+  }
+
+  // ---------- 3D surface (plain canvas, painter's algorithm) ----------
+  function draw3D() {
+    const ctx = c3d.getContext("2d"), col = colors();
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c3d.width, c3d.height); ctx.scale(DPR, DPR);
+    const w = win(), ref = refValue(), N = 40;
+    const xc = (w.x0 + w.x1) / 2, yc = (w.y0 + w.y1) / 2, half = (w.x1 - w.x0) / 2;
+    const Z = []; let zmin = Infinity, zmax = -Infinity;
+    for (let i = 0; i < N; i++) { Z.push([]); for (let j = 0; j < N; j++) {
+      const x = w.x0 + i / (N - 1) * (w.x1 - w.x0), y = w.y0 + j / (N - 1) * (w.y1 - w.y0);
+      const z = value(x, y) - ref; Z[i].push(z); if (z < zmin) zmin = z; if (z > zmax) zmax = z; } }
+    if (st.mode === "energy") { zmin = Math.min(zmin, 0); zmax = Math.max(zmax, 0); }
+    const span = Math.max(zmax - zmin, 1e-9), H = 1.3;          // box height in world units (base square is 2 x 2)
+    const zn = z => (z - zmin) / span * H - H / 2;                // world height
+    const absmax = Math.max(Math.abs(zmin), Math.abs(zmax), 1e-9);
+    const ct = Math.cos(view.th), stt = Math.sin(view.th), cp = Math.cos(view.ph), sp = Math.sin(view.ph);
+    const S3 = W3 * 0.3, cx = W3 / 2, cy = W3 * 0.5;
+    const P = (X, Y, Zw) => { const xr = X * ct - Y * stt, yr = X * stt + Y * ct;
+      return [cx + S3 * xr, cy - S3 * (Zw * cp + yr * sp), yr * cp - Zw * sp]; };
+    const toW = (x, y) => [(x - xc) / half, (y - yc) / half];
+    const bg = rgb(col.bg), bl = rgb(col.blue), or = rgb(col.orange), ink = rgb(col.ink), mut = rgb(col.muted);
+    const dark = (bg[0] + bg[1] + bg[2]) < 300;
+    const zf = -H / 2 - 0.08;                                     // floor height
+
+    // floor with grid, axis labels and the box's back vertical edge
+    ctx.lineWidth = 1; ctx.strokeStyle = col.rule; ctx.fillStyle = col.muted;
+    ctx.font = `12px ${getComputedStyle(document.body).getPropertyValue("--font-mono") || "monospace"}`;
+    for (let t = Math.ceil(w.x0); t <= Math.floor(w.x1); t++) {
+      const [X] = toW(t, 0);
+      const a = P(X, -1, zf), b = P(X, 1, zf); ctx.globalAlpha = t === 0 ? 1 : 0.6;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    for (let t = Math.ceil(w.y0); t <= Math.floor(w.y1); t++) {
+      const [, Y] = toW(0, t);
+      const a = P(-1, Y, zf), b = P(1, Y, zf); ctx.globalAlpha = t === 0 ? 1 : 0.6;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+    // vertical axis on the farthest corner
+    let best = null;
+    for (const [X, Y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const d = P(X, Y, 0)[2]; if (!best || d > best.d) best = { X, Y, d }; }
+    const vb = P(best.X, best.Y, zf), vt = P(best.X, best.Y, H / 2);
+    ctx.strokeStyle = col.muted; ctx.beginPath(); ctx.moveTo(vb[0], vb[1]); ctx.lineTo(vt[0], vt[1]); ctx.stroke();
+    const topV = zmax + ref, botV = zmin + ref;
+    ctx.fillText(`height ${fmt(topV, 1)}`, vt[0] + 6, vt[1] + 4);
+    ctx.fillText(fmt(botV, 1), vb[0] + 6, vb[1] - 2);
+    if (st.mode === "energy" && zmin < 0) { const v0 = P(best.X, best.Y, zn(0)); ctx.fillText("0", v0[0] + 6, v0[1] + 4);
+      ctx.beginPath(); ctx.moveTo(v0[0] - 3, v0[1]); ctx.lineTo(v0[0] + 3, v0[1]); ctx.stroke(); }
+
+    // quads, far to near
+    const L = (() => { const v = [-0.35, -0.55, 0.76], n = Math.hypot(...v); return v.map(c => c / n); })();
+    const quads = [];
+    for (let i = 0; i < N - 1; i++) for (let j = 0; j < N - 1; j++) {
+      const X0 = -1 + 2 * i / (N - 1), X1 = -1 + 2 * (i + 1) / (N - 1), Y0 = -1 + 2 * j / (N - 1), Y1 = -1 + 2 * (j + 1) / (N - 1);
+      const z00 = Z[i][j], z10 = Z[i + 1][j], z11 = Z[i + 1][j + 1], z01 = Z[i][j + 1];
+      const pts = [P(X0, Y0, zn(z00)), P(X1, Y0, zn(z10)), P(X1, Y1, zn(z11)), P(X0, Y1, zn(z01))];
+      quads.push({ i, j, pts, d: (pts[0][2] + pts[1][2] + pts[2][2] + pts[3][2]) / 4, z: [z00, z10, z11, z01],
+        X: [X0, X1, X1, X0], Y: [Y0, Y0, Y1, Y1] });
+    }
+    quads.sort((a, b) => b.d - a.d);
+    for (const q of quads) {
+      const zm = (q.z[0] + q.z[1] + q.z[2] + q.z[3]) / 4;
+      // shading from the world-space normal
+      const ux = q.X[1] - q.X[0], uz = zn(q.z[1]) - zn(q.z[0]), vy = q.Y[3] - q.Y[0], vz = zn(q.z[3]) - zn(q.z[0]);
+      let n = [-uz * vy, -ux * vz, ux * vy]; const nn = Math.hypot(...n); n = n.map(c => c / nn);
+      const lam = 0.62 + 0.38 * Math.abs(n[0] * L[0] + n[1] * L[1] + n[2] * L[2]);
+      const t = 0.22 + 0.6 * Math.tanh(Math.abs(zm) / (0.55 * absmax)), tgt = zm >= 0 ? bl : or;
+      const base0 = dark ? [bg[0] + 18, bg[1] + 20, bg[2] + 24] : [bg[0] - 8, bg[1] - 6, bg[2] - 4];
+      let c = [0, 1, 2].map(k => (base0[k] + (tgt[k] - base0[k]) * t) * lam);
+      const fill = `rgb(${c.map(v => Math.max(0, Math.min(255, Math.round(v)))).join(",")})`;
+      ctx.fillStyle = fill; ctx.strokeStyle = fill; ctx.lineWidth = 0.8;
+      ctx.beginPath(); q.pts.forEach((p, k) => k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill(); ctx.stroke();
+      // mesh lines every 4 cells
+      ctx.strokeStyle = `rgba(${mut.join(",")},0.45)`; ctx.lineWidth = 0.7;
+      if (q.i % 4 === 0) { ctx.beginPath(); ctx.moveTo(q.pts[0][0], q.pts[0][1]); ctx.lineTo(q.pts[3][0], q.pts[3][1]); ctx.stroke(); }
+      if (q.j % 4 === 0) { ctx.beginPath(); ctx.moveTo(q.pts[0][0], q.pts[0][1]); ctx.lineTo(q.pts[1][0], q.pts[1][1]); ctx.stroke(); }
+      // the zero level (energy mode) drawn inside its own quad, so hidden parts stay hidden
+      if (st.mode === "energy") {
+        const cross = [];
+        for (let k = 0; k < 4; k++) { const a = q.z[k], b = q.z[(k + 1) % 4];
+          if ((a < 0) !== (b < 0)) { const f = a / (a - b), pa = q.pts[k], pb = q.pts[(k + 1) % 4];
+            cross.push([pa[0] + f * (pb[0] - pa[0]), pa[1] + f * (pb[1] - pa[1])]); } }
+        if (cross.length >= 2) { ctx.strokeStyle = col.ink; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(cross[0][0], cross[0][1]); ctx.lineTo(cross[1][0], cross[1][1]); ctx.stroke(); }
+      }
+    }
+
+    // floor axis labels, drawn last so the surface cannot hide them
+    ctx.fillStyle = col.muted;
+    const lx = P(1.2, 0 - yc / half, zf), ly = P(0 - xc / half, 1.2, zf);
+    ctx.fillText("x₁", lx[0] - 6, lx[1] + 4); ctx.fillText("x₂", ly[0] - 6, ly[1] + 4);
+    // eigenvector slices: the curves on the surface above the q1 and q2 lines
+    const e = eig(st.a, st.b, st.c), cr = critical();
+    let ox = 0, oy = 0;
+    if (st.mode === "min" && (cr.kind === "point" || cr.kind === "line")) { ox = cr.x; oy = cr.y; }
+    const inWin = (x, y) => x >= w.x0 && x <= w.x1 && y >= w.y0 && y <= w.y1;
+    [[e.q1, col.teal], [e.q2, col.purple]].forEach(([q, c]) => {
+      ctx.strokeStyle = c; ctx.lineWidth = 2.4; ctx.beginPath(); let on = false;
+      for (let t = -8; t <= 8; t += 0.04) {
+        const x = ox + t * q[0], y = oy + t * q[1];
+        if (!inWin(x, y)) { on = false; continue; }
+        const [X, Y] = toW(x, y), p = P(X, Y, zn(value(x, y) - ref) + 0.012);
+        on ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); on = true;
+      }
+      ctx.stroke();
+    });
+    // gradient descent path on the surface
+    if (st.mode === "min" && st.path.length > 1) {
+      ctx.strokeStyle = col.ink; ctx.fillStyle = col.ink; ctx.lineWidth = 1.6; ctx.beginPath(); let on = false;
+      for (const pt of st.path) { if (!inWin(pt[0], pt[1])) { on = false; continue; }
+        const [X, Y] = toW(pt[0], pt[1]), p = P(X, Y, zn(value(pt[0], pt[1]) - ref) + 0.02);
+        on ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); on = true; }
+      ctx.stroke();
+      for (const pt of st.path) { if (!inWin(pt[0], pt[1])) continue;
+        const [X, Y] = toW(pt[0], pt[1]), p = P(X, Y, zn(value(pt[0], pt[1]) - ref) + 0.02);
+        ctx.beginPath(); ctx.arc(p[0], p[1], 2.4, 0, 7); ctx.fill(); }
+    }
+    // probe: point on the surface, dashed drop line to its shadow on the floor
+    const [px, py] = st.x, [PX, PY] = toW(px, py);
+    const top = P(PX, PY, zn(value(px, py) - ref)), flo = P(PX, PY, zf);
+    ctx.strokeStyle = col.ink; ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(flo[0], flo[1]); ctx.lineTo(top[0], top[1]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = col.ink; ctx.beginPath(); ctx.arc(flo[0], flo[1], 3, 0, 7); ctx.fill();
+    ctx.fillStyle = col.surface; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(top[0], top[1], 6, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  function arrow(ctx, x0, y0, x1, y1, c, w) {
+    const ang = Math.atan2(y1 - y0, x1 - x0), h = 10;
+    ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - h * 0.7 * Math.cos(ang), y1 - h * 0.7 * Math.sin(ang)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - h * Math.cos(ang - 0.4), y1 - h * Math.sin(ang - 0.4));
+    ctx.lineTo(x1 - h * Math.cos(ang + 0.4), y1 - h * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fill();
+  }
+
+  function updatePanel() {
+    const { a, b, c } = st, det = a * c - b * b, e = eig(a, b, c), k = classify(e.l1, e.l2);
+    $("matrix").innerHTML = `<span>${fmt(a, 1)}</span><span>${fmt(b, 1)}</span><span>${fmt(b, 1)}</span><span>${fmt(c, 1)}</span>`;
+    $("oa").textContent = fmt(a, 1); $("ob").textContent = fmt(b, 1); $("oc").textContent = fmt(c, 1);
+    $("sa").value = a; $("sb").value = b; $("sc").value = c;
+    const chip = $("chip"); chip.className = "chip " + k.cls; chip.textContent = k.text;
+    $("t-eig").textContent = `${fmt(e.l1)},  ${fmt(e.l2)}`;
+    $("t-piv").textContent = Math.abs(a) > 1e-12 ? `${fmt(a, 1)},  ${fmt(det / a)}` : "a = 0: needs a row exchange";
+    $("t-det").textContent = `a = ${fmt(a, 1)},  det = ${fmt(det)}`;
+    $("t-why").textContent = k.why;
+    document.querySelectorAll("[data-preset]").forEach(btn => {
+      const p = PRESETS[btn.dataset.preset]; btn.setAttribute("aria-pressed", String(p[0] === a && p[1] === b && p[2] === c));
+    });
+    updateProbe(); updateMin();
+    $("legend").innerHTML = st.mode === "energy"
+      ? `<span><span class="sw" style="background:var(--blue)"></span>energy &gt; 0</span><span><span class="sw" style="background:var(--orange)"></span>energy &lt; 0</span><span>bold curve: energy = 0</span><span>dashed: eigenvector lines q₁ (λ₁), q₂ (λ₂)</span>`
+      : `<span><span class="sw" style="background:var(--blue)"></span>f above the critical value</span><span><span class="sw" style="background:var(--orange)"></span>f below it</span><span>▲ critical point (Sx = b)</span><span>arrow: downhill direction −∇f</span>`;
+    $("zname").textContent = st.mode === "energy" ? "xᵀSx" : "f(x) = ½xᵀSx − bᵀx";
+    $("legend3d").innerHTML = st.mode === "energy"
+      ? `<span><span class="sw" style="background:var(--blue)"></span>above 0</span><span><span class="sw" style="background:var(--orange)"></span>below 0</span><span>bold curve: height 0</span><span><span class="sw" style="background:var(--teal)"></span>slice along q₁: height λ₁t² at distance t</span><span><span class="sw" style="background:var(--purple)"></span>slice along q₂: height λ₂t²</span><span>white dot: the probe; its height above the floor dot is xᵀSx</span>`
+      : `<span>height = f(x)</span><span><span class="sw" style="background:var(--teal)"></span>slice along q₁</span><span><span class="sw" style="background:var(--purple)"></span>slice along q₂</span><span>dots: gradient descent</span>`;
+    c3d.setAttribute("aria-label", `3D surface of ${st.mode === "energy" ? "the energy" : "f"}: ${k.why} Arrow keys turn the view.`);
+    over.setAttribute("aria-label", `${st.mode === "energy" ? "Energy" : "Function f"} map for S = [[${fmt(a,1)}, ${fmt(b,1)}], [${fmt(b,1)}, ${fmt(c,1)}]], ${k.text.toLowerCase()}. Probe at (${fmt(st.x[0],2)}, ${fmt(st.x[1],2)}). Arrow keys move the probe.`);
+  }
+  function updateProbe() {
+    const [x, y] = st.x, e = eig(st.a, st.b, st.c);
+    const y1 = e.q1[0] * x + e.q1[1] * y, y2 = e.q2[0] * x + e.q2[1] * y;
+    const E = energy(x, y), cls = E >= 0 ? "pos" : "neg";
+    if (st.mode === "energy") {
+      $("probeTitle").textContent = "Probe vector x";
+      $("probeNote").textContent = "Pick any vector x (drag the probe in the top view, or use the arrow keys there). Its energy is the height of the surface above x, computed two ways.";
+      $("probe").innerHTML =
+        `x = (${fmt(x, 2)}, ${fmt(y, 2)})<br>` +
+        `xᵀSx = <span class="${cls}">${fmt(E)}</span><br>` +
+        `In eigenvector coordinates y = Qᵀx = (${fmt(y1)}, ${fmt(y2)}):<br>` +
+        `λ₁y₁² + λ₂y₂² = ${fmt(e.l1)}·${fmt(y1 * y1)} + ${fmt(e.l2)}·${fmt(y2 * y2)} = <span class="${cls}">${fmt(e.l1 * y1 * y1 + e.l2 * y2 * y2)}</span>`;
+    } else {
+      const g = [st.a * x + st.b * y - st.b1, st.b * x + st.c * y - st.b2];
+      $("probeTitle").textContent = "Probe point x (start of gradient descent)";
+      $("probeNote").textContent = "The height of the surface above x is f(x). The arrow in the top view points downhill, along −∇f.";
+      $("probe").innerHTML = `x = (${fmt(x, 2)}, ${fmt(y, 2)})<br>f(x) = ${fmt(fval(x, y))}<br>∇f(x) = Sx − b = (${fmt(g[0])}, ${fmt(g[1])})`;
+    }
+  }
+  function updateMin() {
+    $("ob1").textContent = fmt(st.b1, 1); $("ob2").textContent = fmt(st.b2, 1); $("oeta").textContent = fmt(st.eta, 2);
+    $("sb1").value = st.b1; $("sb2").value = st.b2; $("seta").value = st.eta;
+    const cr = critical(), e = eig(st.a, st.b, st.c);
+    let s = "";
+    if (cr.kind === "point") {
+      const kind = e.l2 > TOL ? "the unique minimum" : (e.l1 < -TOL ? "a maximum (no minimum)" : "a saddle point (no minimum)");
+      s = `Critical point x* = S⁻¹b = (${fmt(cr.x)}, ${fmt(cr.y)}): ${kind}.<br>f(x*) = ${fmt(fval(cr.x, cr.y))}`;
+    } else if (cr.kind === "line") s = `S is singular and b is in its column space: a whole line of ${e.l1 > TOL ? "minimizers" : "maximizers"} through (${fmt(cr.x)}, ${fmt(cr.y)}).`;
+    else s = `S is singular and Sx = b has no solution: f has no minimum.`;
+    if (e.l2 > -TOL && e.l1 > TOL && cr.kind === "none") {
+      s += `<br><span class="warn">No step size works:</span> the steps settle across the trough but then keep sliding along it, because f keeps decreasing in that direction.`;
+    } else if (e.l2 > -TOL && e.l1 > TOL) {
+      s += `<br>Safe step sizes: η &lt; 2/λ₁ = ${fmt(2 / e.l1)}`;
+      if (st.eta >= 2 / e.l1) s += ` <span class="warn">(current η is too large)</span>`;
+    } else if (e.l1 > TOL) s += `<br><span class="warn">No step size works:</span> along q₂ (λ₂ &lt; 0) every step goes further downhill, away from x*.`;
+    else s += `<br><span class="warn">No step size works:</span> f has no minimum, so every path heads downhill forever.`;
+    $("crit").innerHTML = s;
+  }
+  function gdReport() {
+    const n = st.path.length - 1, p = st.path[st.path.length - 1];
+    if (n <= 0) { $("gdOut").textContent = ""; return; }
+    const cr = critical();
+    let s = `after ${n} step${n === 1 ? "" : "s"}: x = (${fmt(p[0])}, ${fmt(p[1])}), f = ${fmt(fval(p[0], p[1]))}`;
+    if (cr.kind === "point") s += `<br>distance to x*: ${fmt(Math.hypot(p[0] - cr.x, p[1] - cr.y), 5)}`;
+    if (Math.hypot(...p) > 1e4) s += ` <span class="warn">diverging</span>`;
+    $("gdOut").innerHTML = s;
+  }
+  function gdStep() {
+    if (!st.path.length) st.path = [st.x.slice()];
+    const p = st.path[st.path.length - 1];
+    if (Math.hypot(...p) > 1e6) return;
+    const g = [st.a * p[0] + st.b * p[1] - st.b1, st.b * p[0] + st.c * p[1] - st.b2];
+    st.path.push([p[0] - st.eta * g[0], p[1] - st.eta * g[1]]);
+  }
+
+  let baseQueued = false, q3 = false;
+  function queue3D() { if (q3) return; q3 = true; requestAnimationFrame(() => { q3 = false; draw3D(); }); }
+  function redraw(full = true) {
+    if (full && !baseQueued) { baseQueued = true; requestAnimationFrame(() => { baseQueued = false; drawBase(); drawOverlay(); draw3D(); }); }
+    else if (!full) { drawOverlay(); queue3D(); }
+  }
+  function setMatrix(a, b, c) { st.a = round1(a); st.b = round1(b); st.c = round1(c); st.path = []; gdReport(); updatePanel(); redraw(); announce(); }
+  let liveT; function announce() { clearTimeout(liveT); liveT = setTimeout(() => { $("live").textContent = $("chip").textContent + ". Eigenvalues " + $("t-eig").textContent + "."; }, 600); }
+
+  // controls
+  document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => { const p = PRESETS[b.dataset.preset]; setMatrix(...p); }));
+  ["sa", "sb", "sc"].forEach(id => $(id).addEventListener("input", () => setMatrix(+$("sa").value, +$("sb").value, +$("sc").value)));
+  $("sb1").addEventListener("input", e => { st.b1 = +e.target.value; st.path = []; gdReport(); updatePanel(); redraw(); });
+  $("sb2").addEventListener("input", e => { st.b2 = +e.target.value; st.path = []; gdReport(); updatePanel(); redraw(); });
+  $("seta").addEventListener("input", e => { st.eta = Math.round(+e.target.value * 100) / 100; st.path = []; gdReport(); updateMin(); redraw(false); });
+  $("gdStep").addEventListener("click", () => { gdStep(); gdReport(); redraw(false); });
+  let running = null;
+  $("gdRun").addEventListener("click", () => {
+    if (running) return;
+    if (reduceMotion) { for (let i = 0; i < 20; i++) gdStep(); gdReport(); redraw(false); return; }
+    let k = 0; running = setInterval(() => { gdStep(); gdReport(); redraw(false); if (++k >= 20) { clearInterval(running); running = null; } }, 140);
+  });
+  $("gdReset").addEventListener("click", () => { if (running) { clearInterval(running); running = null; } st.path = []; gdReport(); redraw(false); });
+
+  function setMode(m) {
+    st.mode = m; st.path = [];
+    $("tab-energy").setAttribute("aria-pressed", String(m === "energy"));
+    $("tab-min").setAttribute("aria-pressed", String(m === "min"));
+    $("mincard").hidden = m !== "min";
+    st.x = m === "energy" ? [1, 0.5] : [-2, 4];
+    gdReport(); updatePanel(); redraw();
+  }
+  $("tab-energy").addEventListener("click", () => setMode("energy"));
+  $("tab-min").addEventListener("click", () => setMode("min"));
+
+  // probe dragging and keyboard
+  function moveTo(evt) {
+    const r = over.getBoundingClientRect();
+    const [x, y] = toXY(evt.clientX - r.left, evt.clientY - r.top), w = win();
+    st.x = [Math.max(w.x0, Math.min(w.x1, Math.round(x * 20) / 20)), Math.max(w.y0, Math.min(w.y1, Math.round(y * 20) / 20))];
+    if (st.mode === "min") { st.path = []; gdReport(); }
+    updateProbe(); redraw(false);
+  }
+  let dragging = false;
+  over.addEventListener("pointerdown", e => { dragging = true; over.setPointerCapture(e.pointerId); moveTo(e); });
+  over.addEventListener("pointermove", e => { if (dragging) moveTo(e); });
+  over.addEventListener("pointerup", () => { dragging = false; updatePanel(); });
+  over.addEventListener("keydown", e => {
+    const d = e.shiftKey ? 0.5 : 0.1, m = { ArrowLeft: [-d, 0], ArrowRight: [d, 0], ArrowUp: [0, d], ArrowDown: [0, -d] }[e.key];
+    if (!m) return; e.preventDefault();
+    const w = win();
+    st.x = [Math.max(w.x0, Math.min(w.x1, round1(st.x[0] + m[0]))), Math.max(w.y0, Math.min(w.y1, round1(st.x[1] + m[1])))];
+    if (st.mode === "min") { st.path = []; gdReport(); }
+    updatePanel(); redraw(false);
+  });
+
+  // turning the 3D view
+  let rot = null;
+  c3d.addEventListener("pointerdown", e => { rot = { x: e.clientX, y: e.clientY, th: view.th, ph: view.ph }; c3d.setPointerCapture(e.pointerId); });
+  c3d.addEventListener("pointermove", e => { if (!rot) return;
+    view.th = rot.th - (e.clientX - rot.x) * 0.01;
+    view.ph = Math.max(0.08, Math.min(1.5, rot.ph + (e.clientY - rot.y) * 0.01)); queue3D(); });
+  c3d.addEventListener("pointerup", () => { rot = null; });
+  c3d.addEventListener("keydown", e => {
+    const m = { ArrowLeft: [0.12, 0], ArrowRight: [-0.12, 0], ArrowUp: [0, 0.08], ArrowDown: [0, -0.08] }[e.key];
+    if (!m) return; e.preventDefault(); view.th += m[0]; view.ph = Math.max(0.08, Math.min(1.5, view.ph + m[1])); queue3D(); });
+  $("resetView").addEventListener("click", () => { view.th = VIEW0.th; view.ph = VIEW0.ph; queue3D(); });
+
+  // sizing and theme changes
+  const ro = new ResizeObserver(() => { sizeCanvases(); redraw(); }); ro.observe(box); ro.observe(box3d);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => redraw());
+  new MutationObserver(() => redraw()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts) document.fonts.ready.then(() => redraw());
+
+  sizeCanvases(); updatePanel(); redraw();
+})();
+</script>
+
+</body>
+</html>
